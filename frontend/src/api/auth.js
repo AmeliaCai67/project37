@@ -1,5 +1,24 @@
 import request from './request'
 
+/**
+ * 获取或生成用户的强随机密码
+ *
+ * 每个用户名对应一个独立的密码，通过 crypto.randomUUID() 生成（底层调用
+ * crypto.getRandomValues，密码学强度足够）。密码存储在浏览器 localStorage 中，
+ * 首次登录时自动生成，后续从 localStorage 读取。
+ *
+ * 注意：如果用户清除浏览器数据（localStorage），密码将丢失，需要重新注册。
+ */
+export function getOrCreatePassword(username) {
+  const key = `p37_pwd_${username}`
+  let pwd = localStorage.getItem(key)
+  if (!pwd) {
+    pwd = crypto.randomUUID() + crypto.randomUUID()
+    localStorage.setItem(key, pwd)
+  }
+  return pwd
+}
+
 export const authApi = {
   login(data) {
     // 登录使用 form-data 格式（OAuth2PasswordRequestForm）
@@ -23,7 +42,7 @@ export const authApi = {
   },
 
   register(data) {
-    const password = data.password || (data.username.length >= 6 ? data.username : data.username + '123456')
+    const password = data.password || getOrCreatePassword(data.username)
     return request.post('/auth/register', {
       username: data.username,
       email: data.email || `${data.username}@example.com`,

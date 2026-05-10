@@ -41,10 +41,10 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENV != "prod" else None,
 )
 
-# CORS 配置
+# CORS 配置 - 仅允许已知前端域名
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.ENV == "dev" else ["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

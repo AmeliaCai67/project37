@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = f"sqlite:///{BASE_DIR.parent}/data.db"
     
     # JWT
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1天
     
@@ -57,6 +57,13 @@ class Settings(BaseSettings):
         super().__init__(**kwargs)
         # 确保上传目录存在
         self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        # 安全检查：拒绝使用默认或空 SECRET_KEY
+        if not self.SECRET_KEY or self.SECRET_KEY == "your-secret-key-change-in-production":
+            raise ValueError(
+                "SECRET_KEY 未设置或仍为默认值。"
+                "请在 .env 文件中设置一个强随机密钥。\n"
+                "生成方式: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+            )
 
 
 settings = Settings()

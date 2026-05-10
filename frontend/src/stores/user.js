@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { authApi } from '@/api/auth'
+import { authApi, getOrCreatePassword } from '@/api/auth'
 
 export const useUserStore = defineStore('user', () => {
   // State
@@ -20,8 +20,7 @@ export const useUserStore = defineStore('user', () => {
   async function login(username) {
     loading.value = true
     try {
-      // 使用 username 作为基础，确保密码至少6位
-      const password = username.length >= 6 ? username : username + '123456'
+      const password = getOrCreatePassword(username)
       
       // 先尝试直接登录
       let data
