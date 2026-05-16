@@ -349,6 +349,37 @@ class ExecTool:
         return sandbox.execute(command)
 
 
+class SchemaTool:
+    """数据图谱工具 - 读取当前工作区的全局数据地图（元数据与关系）"""
+    
+    def __init__(self, working_dir: Path):
+        self.working_dir = working_dir
+    
+    def execute(self) -> Dict[str, Any]:
+        """读取缓存的图谱并返回提炼后的摘要与关系边"""
+        from tools.schema_profiler import get_schema_summary_for_agent
+        try:
+            result = get_schema_summary_for_agent(self.working_dir)
+            if result is None:
+                return {
+                    "success": True,
+                    "summary": {},
+                    "edges": [],
+                    "message": "当前工作区暂无数据图谱。请先上传 CSV/Excel 文件。",
+                }
+            return {
+                "success": True,
+                "summary": result.get("summary", {}),
+                "meta": result.get("meta", {}),
+                "edges": result.get("edges", []),
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"读取数据图谱失败: {str(e)}",
+            }
+
+
 # 工具注册表
 TOOLS = {
     'glob': GlobTool,
@@ -356,4 +387,5 @@ TOOLS = {
     'grep': GrepTool,
     'stat': StatTool,
     'exec': ExecTool,
+    'get_database_schema_and_relations': SchemaTool,
 }

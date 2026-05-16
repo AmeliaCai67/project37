@@ -184,7 +184,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
@@ -283,6 +283,10 @@ async function loadConversations() {
   await chatStore.fetchConversations()
 }
 
+function onFilesUpdated() {
+  loadFiles()
+}
+
 onMounted(() => {
   loadFiles()
   loadConversations()
@@ -290,6 +294,11 @@ onMounted(() => {
   if (conversationId) {
     chatStore.loadConversation(Number(conversationId))
   }
+  window.addEventListener('files-updated', onFilesUpdated)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('files-updated', onFilesUpdated)
 })
 
 watch(() => route.params.id, (newId) => {

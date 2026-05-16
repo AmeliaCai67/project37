@@ -12,6 +12,7 @@ from schemas.common import BaseResponse, PaginatedResponse
 from services.file_service import FileService
 from api.deps import get_current_user, require_admin
 from core.logging import get_logger
+from tools.schema_profiler import run_schema_profiler_in_background
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -43,6 +44,10 @@ async def upload_file(
 
         # 文件内容提取放到后台任务，不阻塞上传响应
         background_tasks.add_task(FileService.extract_content_in_background, db_file.id)
+
+        # 静默触发多表格关联分析（Schema Profiler），不阻塞主流程
+        user_dir = FileService._get_user_dir(current_user.id)
+        background_tasks.add_task(run_schema_profiler_in_background, user_dir)
 
         return BaseResponse(data={
             "id": db_file.id,
