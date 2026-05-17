@@ -1,0 +1,990 @@
+{
+  "meta": {
+    "tables": 9,
+    "columns": 52,
+    "associations": 48
+  },
+  "nodes": [
+    {
+      "id": "olist_customers_dataset",
+      "type": "table",
+      "columns": [
+        "customer_id",
+        "customer_unique_id",
+        "customer_zip_code_prefix",
+        "customer_city",
+        "customer_state"
+      ],
+      "row_count": 99441
+    },
+    {
+      "id": "olist_geolocation_dataset",
+      "type": "table",
+      "columns": [
+        "geolocation_zip_code_prefix",
+        "geolocation_lat",
+        "geolocation_lng",
+        "geolocation_city",
+        "geolocation_state"
+      ],
+      "row_count": 20000
+    },
+    {
+      "id": "olist_order_items_dataset",
+      "type": "table",
+      "columns": [
+        "order_id",
+        "order_item_id",
+        "product_id",
+        "seller_id",
+        "shipping_limit_date",
+        "price",
+        "freight_value"
+      ],
+      "row_count": 50000
+    },
+    {
+      "id": "olist_order_payments_dataset",
+      "type": "table",
+      "columns": [
+        "order_id",
+        "payment_sequential",
+        "payment_type",
+        "payment_installments",
+        "payment_value"
+      ],
+      "row_count": 103886
+    },
+    {
+      "id": "olist_order_reviews_dataset",
+      "type": "table",
+      "columns": [
+        "review_id",
+        "order_id",
+        "review_score",
+        "review_comment_title",
+        "review_comment_message",
+        "review_creation_date",
+        "review_answer_timestamp"
+      ],
+      "row_count": 50000
+    },
+    {
+      "id": "olist_orders_dataset",
+      "type": "table",
+      "columns": [
+        "order_id",
+        "customer_id",
+        "order_status",
+        "order_purchase_timestamp",
+        "order_approved_at",
+        "order_delivered_carrier_date",
+        "order_delivered_customer_date",
+        "order_estimated_delivery_date"
+      ],
+      "row_count": 50000
+    },
+    {
+      "id": "olist_products_dataset",
+      "type": "table",
+      "columns": [
+        "product_id",
+        "product_category_name",
+        "product_name_lenght",
+        "product_description_lenght",
+        "product_photos_qty",
+        "product_weight_g",
+        "product_length_cm",
+        "product_height_cm",
+        "product_width_cm"
+      ],
+      "row_count": 32951
+    },
+    {
+      "id": "olist_sellers_dataset",
+      "type": "table",
+      "columns": [
+        "seller_id",
+        "seller_zip_code_prefix",
+        "seller_city",
+        "seller_state"
+      ],
+      "row_count": 3095
+    },
+    {
+      "id": "product_category_name_translation",
+      "type": "table",
+      "columns": [
+        "product_category_name",
+        "product_category_name_english"
+      ],
+      "row_count": 71
+    },
+    {
+      "id": "olist_customers_dataset.customer_id",
+      "type": "column",
+      "table": "olist_customers_dataset",
+      "column": "customer_id",
+      "dtype": "string",
+      "cardinality": 5000,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_customers_dataset.customer_unique_id",
+      "type": "column",
+      "table": "olist_customers_dataset",
+      "column": "customer_unique_id",
+      "dtype": "string",
+      "cardinality": 4993,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_customers_dataset.customer_zip_code_prefix",
+      "type": "column",
+      "table": "olist_customers_dataset",
+      "column": "customer_zip_code_prefix",
+      "dtype": "numeric",
+      "cardinality": 3642,
+      "semantic_type": "ip_address"
+    },
+    {
+      "id": "olist_customers_dataset.customer_city",
+      "type": "column",
+      "table": "olist_customers_dataset",
+      "column": "customer_city",
+      "dtype": "string",
+      "cardinality": 1109
+    },
+    {
+      "id": "olist_customers_dataset.customer_state",
+      "type": "column",
+      "table": "olist_customers_dataset",
+      "column": "customer_state",
+      "dtype": "string",
+      "cardinality": 27
+    },
+    {
+      "id": "olist_geolocation_dataset.geolocation_zip_code_prefix",
+      "type": "column",
+      "table": "olist_geolocation_dataset",
+      "column": "geolocation_zip_code_prefix",
+      "dtype": "numeric",
+      "cardinality": 336,
+      "semantic_type": "ip_address"
+    },
+    {
+      "id": "olist_geolocation_dataset.geolocation_lat",
+      "type": "column",
+      "table": "olist_geolocation_dataset",
+      "column": "geolocation_lat",
+      "dtype": "numeric",
+      "cardinality": 3408,
+      "semantic_type": "latitude_longitude"
+    },
+    {
+      "id": "olist_geolocation_dataset.geolocation_lng",
+      "type": "column",
+      "table": "olist_geolocation_dataset",
+      "column": "geolocation_lng",
+      "dtype": "numeric",
+      "cardinality": 3412,
+      "semantic_type": "latitude_longitude"
+    },
+    {
+      "id": "olist_geolocation_dataset.geolocation_city",
+      "type": "column",
+      "table": "olist_geolocation_dataset",
+      "column": "geolocation_city",
+      "dtype": "string",
+      "cardinality": 2
+    },
+    {
+      "id": "olist_geolocation_dataset.geolocation_state",
+      "type": "column",
+      "table": "olist_geolocation_dataset",
+      "column": "geolocation_state",
+      "dtype": "string",
+      "cardinality": 1
+    },
+    {
+      "id": "olist_order_items_dataset.order_id",
+      "type": "column",
+      "table": "olist_order_items_dataset",
+      "column": "order_id",
+      "dtype": "string",
+      "cardinality": 4901,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_order_items_dataset.order_item_id",
+      "type": "column",
+      "table": "olist_order_items_dataset",
+      "column": "order_item_id",
+      "dtype": "numeric",
+      "cardinality": 11,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_order_items_dataset.product_id",
+      "type": "column",
+      "table": "olist_order_items_dataset",
+      "column": "product_id",
+      "dtype": "string",
+      "cardinality": 3694,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_order_items_dataset.seller_id",
+      "type": "column",
+      "table": "olist_order_items_dataset",
+      "column": "seller_id",
+      "dtype": "string",
+      "cardinality": 1220,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_order_items_dataset.shipping_limit_date",
+      "type": "column",
+      "table": "olist_order_items_dataset",
+      "column": "shipping_limit_date",
+      "dtype": "datetime",
+      "cardinality": 4892,
+      "semantic_type": "datetime_iso"
+    },
+    {
+      "id": "olist_order_items_dataset.price",
+      "type": "column",
+      "table": "olist_order_items_dataset",
+      "column": "price",
+      "dtype": "numeric",
+      "cardinality": 1326
+    },
+    {
+      "id": "olist_order_items_dataset.freight_value",
+      "type": "column",
+      "table": "olist_order_items_dataset",
+      "column": "freight_value",
+      "dtype": "numeric",
+      "cardinality": 1873
+    },
+    {
+      "id": "olist_order_payments_dataset.order_id",
+      "type": "column",
+      "table": "olist_order_payments_dataset",
+      "column": "order_id",
+      "dtype": "string",
+      "cardinality": 4986,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_order_payments_dataset.payment_sequential",
+      "type": "column",
+      "table": "olist_order_payments_dataset",
+      "column": "payment_sequential",
+      "dtype": "numeric",
+      "cardinality": 14
+    },
+    {
+      "id": "olist_order_payments_dataset.payment_type",
+      "type": "column",
+      "table": "olist_order_payments_dataset",
+      "column": "payment_type",
+      "dtype": "string",
+      "cardinality": 4
+    },
+    {
+      "id": "olist_order_payments_dataset.payment_installments",
+      "type": "column",
+      "table": "olist_order_payments_dataset",
+      "column": "payment_installments",
+      "dtype": "numeric",
+      "cardinality": 18
+    },
+    {
+      "id": "olist_order_payments_dataset.payment_value",
+      "type": "column",
+      "table": "olist_order_payments_dataset",
+      "column": "payment_value",
+      "dtype": "numeric",
+      "cardinality": 4013
+    },
+    {
+      "id": "olist_order_reviews_dataset.review_id",
+      "type": "column",
+      "table": "olist_order_reviews_dataset",
+      "column": "review_id",
+      "dtype": "string",
+      "cardinality": 4998,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_order_reviews_dataset.order_id",
+      "type": "column",
+      "table": "olist_order_reviews_dataset",
+      "column": "order_id",
+      "dtype": "string",
+      "cardinality": 4998,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_order_reviews_dataset.review_score",
+      "type": "column",
+      "table": "olist_order_reviews_dataset",
+      "column": "review_score",
+      "dtype": "numeric",
+      "cardinality": 5
+    },
+    {
+      "id": "olist_order_reviews_dataset.review_comment_title",
+      "type": "column",
+      "table": "olist_order_reviews_dataset",
+      "column": "review_comment_title",
+      "dtype": "string",
+      "cardinality": 365
+    },
+    {
+      "id": "olist_order_reviews_dataset.review_comment_message",
+      "type": "column",
+      "table": "olist_order_reviews_dataset",
+      "column": "review_comment_message",
+      "dtype": "string",
+      "cardinality": 1988
+    },
+    {
+      "id": "olist_order_reviews_dataset.review_creation_date",
+      "type": "column",
+      "table": "olist_order_reviews_dataset",
+      "column": "review_creation_date",
+      "dtype": "datetime",
+      "cardinality": 524,
+      "semantic_type": "datetime_iso"
+    },
+    {
+      "id": "olist_order_reviews_dataset.review_answer_timestamp",
+      "type": "column",
+      "table": "olist_order_reviews_dataset",
+      "column": "review_answer_timestamp",
+      "dtype": "datetime",
+      "cardinality": 4996,
+      "semantic_type": "datetime_iso"
+    },
+    {
+      "id": "olist_orders_dataset.order_id",
+      "type": "column",
+      "table": "olist_orders_dataset",
+      "column": "order_id",
+      "dtype": "string",
+      "cardinality": 5000,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_orders_dataset.customer_id",
+      "type": "column",
+      "table": "olist_orders_dataset",
+      "column": "customer_id",
+      "dtype": "string",
+      "cardinality": 5000,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_orders_dataset.order_status",
+      "type": "column",
+      "table": "olist_orders_dataset",
+      "column": "order_status",
+      "dtype": "string",
+      "cardinality": 6
+    },
+    {
+      "id": "olist_orders_dataset.order_purchase_timestamp",
+      "type": "column",
+      "table": "olist_orders_dataset",
+      "column": "order_purchase_timestamp",
+      "dtype": "datetime",
+      "cardinality": 5000,
+      "semantic_type": "datetime_iso"
+    },
+    {
+      "id": "olist_orders_dataset.order_approved_at",
+      "type": "column",
+      "table": "olist_orders_dataset",
+      "column": "order_approved_at",
+      "dtype": "datetime",
+      "cardinality": 4970,
+      "semantic_type": "datetime_iso"
+    },
+    {
+      "id": "olist_orders_dataset.order_delivered_carrier_date",
+      "type": "column",
+      "table": "olist_orders_dataset",
+      "column": "order_delivered_carrier_date",
+      "dtype": "datetime",
+      "cardinality": 4844,
+      "semantic_type": "datetime_iso"
+    },
+    {
+      "id": "olist_orders_dataset.order_delivered_customer_date",
+      "type": "column",
+      "table": "olist_orders_dataset",
+      "column": "order_delivered_customer_date",
+      "dtype": "datetime",
+      "cardinality": 4859,
+      "semantic_type": "datetime_iso"
+    },
+    {
+      "id": "olist_orders_dataset.order_estimated_delivery_date",
+      "type": "column",
+      "table": "olist_orders_dataset",
+      "column": "order_estimated_delivery_date",
+      "dtype": "datetime",
+      "cardinality": 406,
+      "semantic_type": "datetime_iso"
+    },
+    {
+      "id": "olist_products_dataset.product_id",
+      "type": "column",
+      "table": "olist_products_dataset",
+      "column": "product_id",
+      "dtype": "string",
+      "cardinality": 5000,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_products_dataset.product_category_name",
+      "type": "column",
+      "table": "olist_products_dataset",
+      "column": "product_category_name",
+      "dtype": "string",
+      "cardinality": 67
+    },
+    {
+      "id": "olist_products_dataset.product_name_lenght",
+      "type": "column",
+      "table": "olist_products_dataset",
+      "column": "product_name_lenght",
+      "dtype": "numeric",
+      "cardinality": 56
+    },
+    {
+      "id": "olist_products_dataset.product_description_lenght",
+      "type": "column",
+      "table": "olist_products_dataset",
+      "column": "product_description_lenght",
+      "dtype": "numeric",
+      "cardinality": 1692,
+      "semantic_type": "ip_address"
+    },
+    {
+      "id": "olist_products_dataset.product_photos_qty",
+      "type": "column",
+      "table": "olist_products_dataset",
+      "column": "product_photos_qty",
+      "dtype": "numeric",
+      "cardinality": 15
+    },
+    {
+      "id": "olist_products_dataset.product_weight_g",
+      "type": "column",
+      "table": "olist_products_dataset",
+      "column": "product_weight_g",
+      "dtype": "numeric",
+      "cardinality": 794
+    },
+    {
+      "id": "olist_products_dataset.product_length_cm",
+      "type": "column",
+      "table": "olist_products_dataset",
+      "column": "product_length_cm",
+      "dtype": "numeric",
+      "cardinality": 93
+    },
+    {
+      "id": "olist_products_dataset.product_height_cm",
+      "type": "column",
+      "table": "olist_products_dataset",
+      "column": "product_height_cm",
+      "dtype": "numeric",
+      "cardinality": 91
+    },
+    {
+      "id": "olist_products_dataset.product_width_cm",
+      "type": "column",
+      "table": "olist_products_dataset",
+      "column": "product_width_cm",
+      "dtype": "numeric",
+      "cardinality": 74,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_sellers_dataset.seller_id",
+      "type": "column",
+      "table": "olist_sellers_dataset",
+      "column": "seller_id",
+      "dtype": "string",
+      "cardinality": 3095,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "olist_sellers_dataset.seller_zip_code_prefix",
+      "type": "column",
+      "table": "olist_sellers_dataset",
+      "column": "seller_zip_code_prefix",
+      "dtype": "numeric",
+      "cardinality": 2246,
+      "semantic_type": "ip_address"
+    },
+    {
+      "id": "olist_sellers_dataset.seller_city",
+      "type": "column",
+      "table": "olist_sellers_dataset",
+      "column": "seller_city",
+      "dtype": "string",
+      "cardinality": 611
+    },
+    {
+      "id": "olist_sellers_dataset.seller_state",
+      "type": "column",
+      "table": "olist_sellers_dataset",
+      "column": "seller_state",
+      "dtype": "string",
+      "cardinality": 23
+    },
+    {
+      "id": "product_category_name_translation.product_category_name",
+      "type": "column",
+      "table": "product_category_name_translation",
+      "column": "product_category_name",
+      "dtype": "string",
+      "cardinality": 71
+    },
+    {
+      "id": "product_category_name_translation.product_category_name_english",
+      "type": "column",
+      "table": "product_category_name_translation",
+      "column": "product_category_name_english",
+      "dtype": "string",
+      "cardinality": 71
+    }
+  ],
+  "edges": [
+    {
+      "source": "olist_customers_dataset.customer_id",
+      "target": "olist_orders_dataset.customer_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'customer_id'"
+    },
+    {
+      "source": "olist_order_items_dataset.order_id",
+      "target": "olist_order_payments_dataset.order_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'order_id'"
+    },
+    {
+      "source": "olist_order_items_dataset.order_id",
+      "target": "olist_order_reviews_dataset.order_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'order_id'"
+    },
+    {
+      "source": "olist_order_items_dataset.order_id",
+      "target": "olist_orders_dataset.order_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'order_id'"
+    },
+    {
+      "source": "olist_order_items_dataset.product_id",
+      "target": "olist_products_dataset.product_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'product_id'"
+    },
+    {
+      "source": "olist_order_items_dataset.seller_id",
+      "target": "olist_sellers_dataset.seller_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'seller_id'"
+    },
+    {
+      "source": "olist_order_payments_dataset.order_id",
+      "target": "olist_order_reviews_dataset.order_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'order_id'"
+    },
+    {
+      "source": "olist_order_payments_dataset.order_id",
+      "target": "olist_orders_dataset.order_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'order_id'"
+    },
+    {
+      "source": "olist_order_reviews_dataset.order_id",
+      "target": "olist_orders_dataset.order_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'order_id'"
+    },
+    {
+      "source": "olist_products_dataset.product_category_name",
+      "target": "product_category_name_translation.product_category_name",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'product_category_name'"
+    },
+    {
+      "source": "olist_customers_dataset.customer_zip_code_prefix",
+      "target": "olist_sellers_dataset.seller_zip_code_prefix",
+      "type": "distribution_similar",
+      "confidence": 0.982,
+      "detail": "范围重叠 99.8%, 均值距离 0.10σ",
+      "metrics": {
+        "range_overlap": 0.9982,
+        "mean_distance_sigma": 0.1008
+      }
+    },
+    {
+      "source": "olist_products_dataset.product_category_name",
+      "target": "product_category_name_translation.product_category_name",
+      "type": "foreign_key_candidate",
+      "confidence": 0.955,
+      "detail": "97.3% 的 olist_products_dataset.product_category_name 值出现在 product_category_name_translation.product_category_name 中; 基数 67 -> 71",
+      "metrics": {
+        "containment_ratio": 0.9726,
+        "cardinality_source": 67,
+        "cardinality_target": 71
+      }
+    },
+    {
+      "source": "olist_products_dataset.product_category_name",
+      "target": "product_category_name_translation.product_category_name",
+      "type": "content_overlap",
+      "confidence": 0.944,
+      "detail": "取值集合 Jaccard 相似度 94.37%"
+    },
+    {
+      "source": "olist_order_items_dataset.order_item_id",
+      "target": "olist_order_payments_dataset.payment_installments",
+      "type": "foreign_key_candidate",
+      "confidence": 0.938,
+      "detail": "93.8% 的 olist_order_items_dataset.order_item_id 值出现在 olist_order_payments_dataset.payment_installments 中; 基数 11 -> 18",
+      "metrics": {
+        "containment_ratio": 0.9375,
+        "cardinality_source": 11,
+        "cardinality_target": 18
+      }
+    },
+    {
+      "source": "olist_order_items_dataset.price",
+      "target": "olist_order_payments_dataset.payment_value",
+      "type": "distribution_similar",
+      "confidence": 0.857,
+      "detail": "范围重叠 77.5%, 均值距离 0.18σ",
+      "metrics": {
+        "range_overlap": 0.7749,
+        "mean_distance_sigma": 0.1833
+      }
+    },
+    {
+      "source": "olist_customers_dataset.customer_state",
+      "target": "olist_sellers_dataset.seller_state",
+      "type": "content_overlap",
+      "confidence": 0.852,
+      "detail": "取值集合 Jaccard 相似度 85.19%"
+    },
+    {
+      "source": "olist_order_payments_dataset.payment_sequential",
+      "target": "olist_products_dataset.product_photos_qty",
+      "type": "content_overlap",
+      "confidence": 0.812,
+      "detail": "取值集合 Jaccard 相似度 81.25%"
+    },
+    {
+      "source": "olist_order_payments_dataset.payment_sequential",
+      "target": "olist_products_dataset.product_photos_qty",
+      "type": "distribution_similar",
+      "confidence": 0.804,
+      "detail": "范围重叠 88.9%, 均值距离 0.84σ",
+      "metrics": {
+        "range_overlap": 0.8889,
+        "mean_distance_sigma": 0.8414
+      }
+    },
+    {
+      "source": "olist_order_payments_dataset.payment_installments",
+      "target": "olist_products_dataset.product_photos_qty",
+      "type": "distribution_similar",
+      "confidence": 0.798,
+      "detail": "范围重叠 69.6%, 均值距离 0.30σ",
+      "metrics": {
+        "range_overlap": 0.6957,
+        "mean_distance_sigma": 0.3004
+      }
+    },
+    {
+      "source": "olist_customers_dataset.customer_zip_code_prefix",
+      "target": "olist_sellers_dataset.seller_zip_code_prefix",
+      "type": "semantic_column_name",
+      "confidence": 0.797,
+      "detail": "列名语义相似 'customer_zip_code_prefix' ↔ 'seller_zip_code_prefix' (余弦相似度 0.80)"
+    },
+    {
+      "source": "olist_products_dataset.product_category_name",
+      "target": "product_category_name_translation.product_category_name_english",
+      "type": "semantic_column_name",
+      "confidence": 0.779,
+      "detail": "列名语义相似 'product_category_name' ↔ 'product_category_name_english' (余弦相似度 0.78)"
+    },
+    {
+      "source": "olist_order_items_dataset.order_item_id",
+      "target": "olist_order_payments_dataset.payment_sequential",
+      "type": "distribution_similar",
+      "confidence": 0.748,
+      "detail": "范围重叠 55.6%, 均值距离 0.18σ",
+      "metrics": {
+        "range_overlap": 0.5556,
+        "mean_distance_sigma": 0.1794
+      }
+    },
+    {
+      "source": "olist_order_items_dataset.freight_value",
+      "target": "olist_products_dataset.product_height_cm",
+      "type": "distribution_similar",
+      "confidence": 0.74,
+      "detail": "范围重叠 54.6%, 均值距离 0.20σ",
+      "metrics": {
+        "range_overlap": 0.5463,
+        "mean_distance_sigma": 0.201
+      }
+    },
+    {
+      "source": "olist_order_payments_dataset.payment_installments",
+      "target": "olist_products_dataset.product_photos_qty",
+      "type": "content_overlap",
+      "confidence": 0.737,
+      "detail": "取值集合 Jaccard 相似度 73.68%"
+    },
+    {
+      "source": "olist_order_items_dataset.freight_value",
+      "target": "olist_products_dataset.product_width_cm",
+      "type": "distribution_similar",
+      "confidence": 0.698,
+      "detail": "范围重叠 48.3%, 均值距离 0.26σ",
+      "metrics": {
+        "range_overlap": 0.4826,
+        "mean_distance_sigma": 0.26
+      }
+    },
+    {
+      "source": "olist_order_items_dataset.price",
+      "target": "olist_products_dataset.product_description_lenght",
+      "type": "distribution_similar",
+      "confidence": 0.695,
+      "detail": "范围重叠 85.9%, 均值距离 1.41σ",
+      "metrics": {
+        "range_overlap": 0.8593,
+        "mean_distance_sigma": 1.4082
+      }
+    },
+    {
+      "source": "olist_order_items_dataset.order_item_id",
+      "target": "olist_products_dataset.product_photos_qty",
+      "type": "distribution_similar",
+      "confidence": 0.686,
+      "detail": "范围重叠 62.5%, 均值距离 0.76σ",
+      "metrics": {
+        "range_overlap": 0.625,
+        "mean_distance_sigma": 0.7564
+      }
+    },
+    {
+      "source": "olist_geolocation_dataset.geolocation_zip_code_prefix",
+      "target": "olist_sellers_dataset.seller_zip_code_prefix",
+      "type": "semantic_column_name",
+      "confidence": 0.66,
+      "detail": "列名语义相似 'geolocation_zip_code_prefix' ↔ 'seller_zip_code_prefix' (余弦相似度 0.66)"
+    },
+    {
+      "source": "olist_customers_dataset.customer_zip_code_prefix",
+      "target": "olist_geolocation_dataset.geolocation_zip_code_prefix",
+      "type": "semantic_column_name",
+      "confidence": 0.648,
+      "detail": "列名语义相似 'customer_zip_code_prefix' ↔ 'geolocation_zip_code_prefix' (余弦相似度 0.65)"
+    },
+    {
+      "source": "olist_order_items_dataset.freight_value",
+      "target": "olist_products_dataset.product_length_cm",
+      "type": "distribution_similar",
+      "confidence": 0.636,
+      "detail": "范围重叠 50.4%, 均值距离 0.70σ",
+      "metrics": {
+        "range_overlap": 0.5038,
+        "mean_distance_sigma": 0.6983
+      }
+    },
+    {
+      "source": "olist_customers_dataset.customer_state",
+      "target": "olist_orders_dataset.customer_id",
+      "type": "semantic_column_name",
+      "confidence": 0.633,
+      "detail": "列名语义相似 'customer_state' ↔ 'customer_id' (余弦相似度 0.63)"
+    },
+    {
+      "source": "olist_customers_dataset.customer_city",
+      "target": "olist_orders_dataset.customer_id",
+      "type": "semantic_column_name",
+      "confidence": 0.622,
+      "detail": "列名语义相似 'customer_city' ↔ 'customer_id' (余弦相似度 0.62)"
+    },
+    {
+      "source": "olist_order_payments_dataset.payment_value",
+      "target": "olist_products_dataset.product_description_lenght",
+      "type": "distribution_similar",
+      "confidence": 0.613,
+      "detail": "范围重叠 66.6%, 均值距离 1.32σ",
+      "metrics": {
+        "range_overlap": 0.666,
+        "mean_distance_sigma": 1.318
+      }
+    },
+    {
+      "source": "olist_order_items_dataset.order_item_id",
+      "target": "olist_order_payments_dataset.payment_installments",
+      "type": "content_overlap",
+      "confidence": 0.611,
+      "detail": "取值集合 Jaccard 相似度 61.11%"
+    },
+    {
+      "source": "olist_order_items_dataset.seller_id",
+      "target": "olist_sellers_dataset.seller_state",
+      "type": "semantic_column_name",
+      "confidence": 0.583,
+      "detail": "列名语义相似 'seller_id' ↔ 'seller_state' (余弦相似度 0.58)"
+    },
+    {
+      "source": "olist_order_items_dataset.seller_id",
+      "target": "olist_sellers_dataset.seller_city",
+      "type": "semantic_column_name",
+      "confidence": 0.581,
+      "detail": "列名语义相似 'seller_id' ↔ 'seller_city' (余弦相似度 0.58)"
+    },
+    {
+      "source": "olist_order_items_dataset.order_item_id",
+      "target": "olist_order_payments_dataset.payment_installments",
+      "type": "distribution_similar",
+      "confidence": 0.579,
+      "detail": "范围重叠 43.5%, 均值距离 0.83σ",
+      "metrics": {
+        "range_overlap": 0.4348,
+        "mean_distance_sigma": 0.8327
+      }
+    },
+    {
+      "source": "olist_order_items_dataset.order_item_id",
+      "target": "olist_order_payments_dataset.order_id",
+      "type": "semantic_column_name",
+      "confidence": 0.556,
+      "detail": "列名语义相似 'order_item_id' ↔ 'order_id' (余弦相似度 0.56)"
+    },
+    {
+      "source": "olist_order_items_dataset.order_item_id",
+      "target": "olist_order_reviews_dataset.order_id",
+      "type": "semantic_column_name",
+      "confidence": 0.556,
+      "detail": "列名语义相似 'order_item_id' ↔ 'order_id' (余弦相似度 0.56)"
+    },
+    {
+      "source": "olist_order_items_dataset.order_item_id",
+      "target": "olist_orders_dataset.order_id",
+      "type": "semantic_column_name",
+      "confidence": 0.556,
+      "detail": "列名语义相似 'order_item_id' ↔ 'order_id' (余弦相似度 0.56)"
+    },
+    {
+      "source": "olist_customers_dataset.customer_state",
+      "target": "olist_sellers_dataset.seller_state",
+      "type": "semantic_column_name",
+      "confidence": 0.539,
+      "detail": "列名语义相似 'customer_state' ↔ 'seller_state' (余弦相似度 0.54)"
+    },
+    {
+      "source": "olist_customers_dataset.customer_city",
+      "target": "olist_sellers_dataset.seller_city",
+      "type": "semantic_column_name",
+      "confidence": 0.534,
+      "detail": "列名语义相似 'customer_city' ↔ 'seller_city' (余弦相似度 0.53)"
+    },
+    {
+      "source": "olist_customers_dataset.customer_unique_id",
+      "target": "olist_orders_dataset.customer_id",
+      "type": "semantic_column_name",
+      "confidence": 0.507,
+      "detail": "列名语义相似 'customer_unique_id' ↔ 'customer_id' (余弦相似度 0.51)"
+    },
+    {
+      "source": "olist_order_items_dataset",
+      "target": "olist_order_payments_dataset",
+      "type": "column_name_overlap",
+      "confidence": 0.444,
+      "detail": "共同列: ['order_id']",
+      "common_columns": [
+        "order_id"
+      ]
+    },
+    {
+      "source": "olist_customers_dataset",
+      "target": "olist_orders_dataset",
+      "type": "column_name_overlap",
+      "confidence": 0.222,
+      "detail": "共同列: ['customer_id']",
+      "common_columns": [
+        "customer_id"
+      ]
+    },
+    {
+      "source": "olist_order_items_dataset",
+      "target": "olist_products_dataset",
+      "type": "column_name_overlap",
+      "confidence": 0.222,
+      "detail": "共同列: ['product_id']",
+      "common_columns": [
+        "product_id"
+      ]
+    },
+    {
+      "source": "olist_order_items_dataset",
+      "target": "olist_sellers_dataset",
+      "type": "column_name_overlap",
+      "confidence": 0.222,
+      "detail": "共同列: ['seller_id']",
+      "common_columns": [
+        "seller_id"
+      ]
+    },
+    {
+      "source": "olist_products_dataset",
+      "target": "product_category_name_translation",
+      "type": "column_name_overlap",
+      "confidence": 0.222,
+      "detail": "共同列: ['product_category_name']",
+      "common_columns": [
+        "product_category_name"
+      ]
+    }
+  ],
+  "summary": {
+    "association_types": {
+      "same_column_name": 10,
+      "distribution_similar": 12,
+      "foreign_key_candidate": 2,
+      "content_overlap": 5,
+      "semantic_column_name": 14,
+      "column_name_overlap": 5
+    },
+    "top_confidence": 1.0
+  }
+}
