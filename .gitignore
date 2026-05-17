@@ -89,3 +89,8 @@ csv-data/
 /test_asset/home_credit_default_risk/previous_application.csv
 /test_asset/instacart_market_basket/order_products__prior.csv
 /test_asset/instacart_market_basket/orders.csv
+
+# Project work files
+experiments/
+TASK.md
+CONSTRAINTS.md
