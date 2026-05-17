@@ -41,11 +41,27 @@ FILE_SIZE_THRESHOLDS: List[Tuple[int, int]] = [
     (10 * 1024 * 1024, 200_000),   # <= 10MB: 最多 20 万行
     (50 * 1024 * 1024, 50_000),    # <= 50MB: 最多 5 万行
     (100 * 1024 * 1024, 20_000),   # <= 100MB: 最多 2 万行
-    (500 * 1024 * 1024, 5_000),    # <= 500MB: 最多 5 千行
+    (500 * 1024 * 1024, 20_000),   # <= 500MB: 最多 2 万行
 ]
-DEFAULT_LARGE_FILE_ROWS = 2_000     # 超过最大阈值时，仅读 2 千行
+DEFAULT_LARGE_FILE_ROWS = 10_000    # 超过最大阈值时，读 1 万行
 
 CACHE_FILENAME = "schema_graph.json"
+
+# 列名黑名单：pandas 自动生成的无意义列，读取时直接过滤
+COLUMN_BLACKLIST = {
+    "unnamed: 0", "unnamed: 1", "unnamed: 2", "unnamed: 3",
+    "index", "level_0", "level_1", "level_2",
+}
+
+
+def _filter_blacklist_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """过滤掉 pandas 自动生成的无意义列（如 Unnamed: 0、index 等）。"""
+    if df.empty:
+        return df
+    to_drop = [c for c in df.columns if str(c).strip().lower() in COLUMN_BLACKLIST]
+    if to_drop:
+        df = df.drop(columns=to_drop)
+    return df
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -110,7 +126,7 @@ def read_csv_robust(filepath: Path, max_rows: int = DEFAULT_MAX_ROWS) -> Optiona
                 nrows=max_rows,
                 **cfg,
             )
-            return df
+            return _filter_blacklist_columns(df)
         except Exception:
             continue
 
@@ -121,7 +137,7 @@ def read_excel_robust(filepath: Path, max_rows: int = DEFAULT_MAX_ROWS) -> Optio
     """鲁棒的 Excel 读取，限制行数。"""
     try:
         df = pd.read_excel(filepath, dtype=str, keep_default_na=True, nrows=max_rows)
-        return df
+        return _filter_blacklist_columns(df)
     except Exception:
         return None
 
@@ -461,6 +477,26 @@ def _jaccard(a: set, b: set) -> float:
     return inter / union if union else 0.0
 
 
+def _mirror_table_pairs(tables: Dict[str, pd.DataFrame], threshold: float = 0.8) -> Set[Tuple[str, str]]:
+    """
+    识别镜像表对（列名重合度 >= threshold 的表对）。
+    镜像表通常产生大量无意义的内容重叠边（如 train/test 分割）。
+    """
+    pairs: Set[Tuple[str, str]] = set()
+    tnames = list(tables.keys())
+    for i in range(len(tnames)):
+        for j in range(i + 1, len(tnames)):
+            t1, t2 = tnames[i], tnames[j]
+            cols1 = set(tables[t1].columns)
+            cols2 = set(tables[t2].columns)
+            if not cols1 or not cols2:
+                continue
+            overlap = len(cols1 & cols2) / len(cols1 | cols2)
+            if overlap >= threshold:
+                pairs.add((t1, t2) if t1 < t2 else (t2, t1))
+    return pairs
+
+
 def detect_column_name_similarity(
     tables: Dict[str, pd.DataFrame],
     col_index: Dict[str, Dict[str, Any]],
@@ -542,9 +578,11 @@ def detect_content_overlap_lsh(
     col_index: Dict[str, Dict[str, Any]],
     minhash: MinHash,
     lsh: LSH,
+    mirror_pairs: Optional[Set[Tuple[str, str]]] = None,
 ) -> List[Dict]:
     """策略 2：MinHash+LSH 优化数据内容重叠检测。"""
     edges = []
+    mirror_pairs = mirror_pairs or set()
     sigs = {}
     for cid, info in col_index.items():
         vals = info["stats"]["sample_uniques"]
@@ -559,14 +597,24 @@ def detect_content_overlap_lsh(
         if s1["dtype"] != s2["dtype"]:
             continue
 
+        # 低基数过滤器：两列 cardinality 都 < 5 时，跳过内容重叠策略
+        # 低基数枚举值（如 0/1/2）只能靠列名语义匹配，不能靠内容重叠度
+        if s1["cardinality"] < 5 and s2["cardinality"] < 5:
+            continue
+
         overlap = _jaccard(s1["sample_uniques"], s2["sample_uniques"])
         if overlap >= 0.3:
+            confidence = overlap
+            # 镜像表折扣：同构表（如 train/test）之间的内容重叠边可信度大幅降低
+            pair = tuple(sorted([info1["table"], info2["table"]]))
+            if pair in mirror_pairs:
+                confidence *= 0.3
             edges.append(
                 {
                     "source": c1,
                     "target": c2,
                     "type": "content_overlap",
-                    "confidence": round(overlap, 3),
+                    "confidence": round(confidence, 3),
                     "detail": f"取值集合 Jaccard 相似度 {overlap:.2%}",
                 }
             )
@@ -580,9 +628,11 @@ def detect_foreign_key_candidates_lsh(
     embedder: ColumnEmbedder,
     minhash: MinHash,
     lsh: LSH,
+    mirror_pairs: Optional[Set[Tuple[str, str]]] = None,
 ) -> List[Dict]:
     """策略 3：MinHash+LSH + 剪枝策略优化外键检测。"""
     edges = []
+    mirror_pairs = mirror_pairs or set()
     sigs = {}
     for cid, info in col_index.items():
         vals = info["stats"]["sample_uniques"]
@@ -598,6 +648,11 @@ def detect_foreign_key_candidates_lsh(
         if s1["dtype"] != s2["dtype"]:
             continue
 
+        # 低基数过滤器：两列 cardinality 都 < 5 时，跳过外键候选策略
+        # 低基数枚举值（如 0/1/2）只能靠列名语义匹配，不能靠内容重叠度
+        if s1["cardinality"] < 5 and s2["cardinality"] < 5:
+            continue
+
         # 剪枝 1：基数关系（被引用方 >= 引用方）
         if s2["cardinality"] < s1["cardinality"]:
             continue
@@ -607,6 +662,12 @@ def detect_foreign_key_candidates_lsh(
         sem2 = s2.get("semantic_type")
         if sem1 and sem2 and sem1 != sem2:
             continue
+
+        # ── 剪枝 3：列名语义相似度过滤 ──
+        name_sim = embedder.similarity(info1["column"], info2["column"])
+        # 如果列名完全不相关（相似度 < 0.1），且语义类型也不一致，则跳过
+        if name_sim < 0.1 and not (sem1 and sem1 == sem2):
+            pass  # 仍保留，因为值重叠高也可能有意义
 
         # 精确包含率计算（采样加速）
         t1, col1 = info1["table"], info1["column"]
@@ -626,6 +687,19 @@ def detect_foreign_key_candidates_lsh(
 
         if ratio >= 0.85:
             confidence = min(1.0, ratio * (1 - s1["null_ratio"]))
+
+            # 包含率合理性检查：
+            # 当 source cardinality 远小于 target cardinality（< 10%）且包含率接近 100%，
+            # 但列名语义完全不相关时，极可能是小样本巧合产生的假阳性，需要大幅打折。
+            cardinality_ratio = s1["cardinality"] / max(s2["cardinality"], 1)
+            if ratio >= 0.99 and cardinality_ratio < 0.1 and name_sim < 0.3:
+                confidence *= 0.3
+
+            # 镜像表折扣：同构表（如 train/test）之间的外键边可信度大幅降低
+            pair = tuple(sorted([t1, t2]))
+            if pair in mirror_pairs:
+                confidence *= 0.3
+
             edges.append(
                 {
                     "source": c1,
@@ -906,10 +980,13 @@ class SchemaProfiler:
         embedder = ColumnEmbedder()
         embedder.fit(all_col_names)
 
+        # 识别镜像表对（列名重合度 >= 80%），用于后续去重
+        mirror_pairs = _mirror_table_pairs(tables)
+
         edges = []
         edges += detect_column_name_similarity(tables, col_index, embedder)
-        edges += detect_content_overlap_lsh(tables, col_index, self.minhash, self.lsh)
-        edges += detect_foreign_key_candidates_lsh(tables, col_index, embedder, self.minhash, self.lsh)
+        edges += detect_content_overlap_lsh(tables, col_index, self.minhash, self.lsh, mirror_pairs)
+        edges += detect_foreign_key_candidates_lsh(tables, col_index, embedder, self.minhash, self.lsh, mirror_pairs)
         edges += detect_distribution_similarity(col_index)
         edges += detect_composite_keys(tables, col_index, edges)
 
