@@ -16,10 +16,15 @@ def db_session():
     """创建使用内存 SQLite 数据库的会话，函数结束后销毁"""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
     from models.base import Base
+    # 确保所有模型表都已注册到 Base.metadata
+    from models import Workspace, OutputArtifact  # noqa: F401
 
     engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
     TestingSessionLocal = sessionmaker(
         autocommit=False, autoflush=False, bind=engine
