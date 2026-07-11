@@ -56,10 +56,9 @@ CLAUDE.md
 *api_key*
 *apikey*
 
-# Tests
-backend/tests/
-frontend/tests/
-
+# Test runtime artifacts only (test source files are tracked)
+backend/.pytest_cache/
+frontend/coverage/
 # Test data / assets
 backend/testassets/*
 !backend/testassets/.gitkeep
