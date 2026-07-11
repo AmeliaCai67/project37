@@ -2,26 +2,36 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy.orm import Session
-
 from models.workspace import Workspace
 from tools.schema_profiler import SchemaProfiler
 from core.llm_client import llm_client as default_llm_client
+from core.logging import get_logger
+from services.file_service import FileService
+from services.workspace_service import WorkspaceService
+
+logger = get_logger(__name__)
 
 
 class RoadmapService:
     @staticmethod
-    def _resolve_workspace_path(workspace: Workspace) -> Path:
-        """解析工作空间对应的数据目录路径。"""
+    def _resolve_scan_path(workspace: Workspace) -> Path:
+        """解析工作空间应扫描的数据目录路径。"""
         if workspace.type == "internal":
-            # internal workspace 的 output_path 为 .../user_{id}/37-output
-            # 数据目录为其父目录，即 uploads/user_{id}/
-            return Path(workspace.output_path).parent
-        return Path(workspace.source_path)
+            # internal workspace：扫描用户上传根目录，跳过 37-output 与 .cache
+            return FileService._get_user_dir(workspace.owner_id)
+        # external workspace：扫描内部隔离副本目录，尊重 copy isolation
+        return WorkspaceService.get_internal_copy_dir(
+            workspace.owner_id, workspace.id
+        )
+
+    @staticmethod
+    def _cache_path(workspace: Workspace) -> Path:
+        """计算 schema 图谱缓存路径（内部缓存，不污染源目录）。"""
+        user_dir = FileService._get_user_dir(workspace.owner_id)
+        return user_dir / ".cache" / f"{workspace.id}_schema_graph.json"
 
     @staticmethod
     async def build_roadmap(
-        db: Session,
         workspace: Workspace,
         llm_client: Optional[Any] = None,
     ) -> Dict[str, Any]:
@@ -29,16 +39,17 @@ class RoadmapService:
         构建工作空间的数据画像与推荐问题路线图。
 
         Args:
-            db: 数据库会话
             workspace: 工作空间 ORM 对象
             llm_client: 可选的 LLM 客户端，默认为全局 llm_client
 
         Returns:
             {"tables": [...], "relationships": [...], "questions": [...]}
         """
-        workspace_path = RoadmapService._resolve_workspace_path(workspace)
+        scan_path = RoadmapService._resolve_scan_path(workspace)
+        cache_path = RoadmapService._cache_path(workspace)
+
         profiler = SchemaProfiler()
-        graph = profiler.build_and_cache(workspace_path)
+        graph = profiler.build_and_cache(scan_path, cache_path)
 
         questions = await RoadmapService.generate_questions(
             graph, llm_client or default_llm_client
@@ -90,7 +101,7 @@ class RoadmapService:
             if questions:
                 return questions[:5]
         except Exception:
-            pass
+            logger.exception("Failed to generate questions via LLM, falling back")
 
         return RoadmapService.fallback_questions(graph)
 

@@ -7,10 +7,12 @@ from models.base import get_db
 from models.user import User
 from models.workspace import Workspace
 from schemas.common import BaseResponse
-from schemas.roadmap import RoadmapResponse
 from services.roadmap_service import RoadmapService
+from core.logging import get_logger
 
 router = APIRouter(prefix="/workspaces", tags=["roadmap"])
+
+logger = get_logger(__name__)
 
 
 @router.get(
@@ -34,11 +36,12 @@ async def get_roadmap(
         )
 
     try:
-        roadmap = await RoadmapService.build_roadmap(db, ws)
-    except Exception as e:
+        roadmap = await RoadmapService.build_roadmap(ws)
+    except Exception:
+        logger.exception("Failed to build roadmap for workspace %s", workspace_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to build roadmap: {e}",
+            detail="Failed to build roadmap. Please try again later.",
         )
 
     return BaseResponse(data=roadmap)
