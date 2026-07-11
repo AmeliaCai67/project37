@@ -6,29 +6,6 @@ from models.file import File
 from models.user import User
 
 
-@pytest.fixture(scope="function")
-def db_session():
-    """创建使用内存 SQLite 数据库的会话，函数结束后销毁"""
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from models.base import Base
-
-    engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}
-    )
-    TestingSessionLocal = sessionmaker(
-        autocommit=False, autoflush=False, bind=engine
-    )
-    Base.metadata.create_all(bind=engine)
-
-    session = TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
-        Base.metadata.drop_all(bind=engine)
-
-
 def test_workspace_creation(db_session):
     user = User(username="teacher", hashed_password="x", role="admin")
     db_session.add(user)
