@@ -22,8 +22,9 @@ class AgentService:
     MAX_ITERATIONS = 8
     CONTEXT_LIMIT = 15000
     
-    def __init__(self, working_dir: Path = None):
+    def __init__(self, working_dir: Path = None, output_dir: Path = None):
         self.working_dir = working_dir or Path(".")
+        self.output_dir = output_dir
         self.llm_client = llm_client
         
         # 初始化工具
@@ -32,7 +33,7 @@ class AgentService:
             "read": ReadTool(working_dir=self.working_dir),
             "grep": GrepTool(working_dir=self.working_dir),
             "stat": StatTool(working_dir=self.working_dir),
-            "exec": ExecTool(working_dir=self.working_dir),
+            "exec": ExecTool(working_dir=self.working_dir, output_dir=self.output_dir),
         }
     
     def _build_system_prompt(self, role: str, file_names: List[str] = None, file_contents: Dict[str, str] = None) -> str:
@@ -141,6 +142,8 @@ Answer: 根据数据分析，...
 - 回答要具体，引用数据支撑你的结论
 - **停止条件**：如果你已经获得足够信息来回答用户的问题，必须立即停止调用工具，直接给出 Answer。不要过度分析或追求额外数据。
 - **输出规范**：禁止在回答中使用任何 emoji 表情符号（如 ✅❌📊📈等），请使用纯文本格式。
+- **文件保护**：你只能读取工作目录中的文件，禁止修改、删除或覆盖任何源文件。
+- **输出目录**：所有输出文件（图表、报告、CSV 结果）必须保存到 /output/ 目录下。如果用户没有要求保存，你也应该把有价值的交付物自动保存到 /output/。
 """
         return prompt
     

@@ -323,8 +323,9 @@ class StatTool:
 class ExecTool:
     """代码执行工具 - 使用 RestrictedPythonSandbox"""
     
-    def __init__(self, working_dir: Path, timeout: int = 30):
+    def __init__(self, working_dir: Path, timeout: int = 30, output_dir: Path = None):
         self.working_dir = working_dir
+        self.output_dir = output_dir
         self.timeout = timeout
         # 创建一个虚拟用户 ID 用于沙箱（实际应该传入真实用户 ID）
         self.sandbox_user_id = 0
@@ -343,7 +344,8 @@ class ExecTool:
         sandbox = RestrictedPythonSandbox(
             user_id=self.sandbox_user_id,
             working_dir=self.working_dir,
-            timeout=self.timeout
+            timeout=self.timeout,
+            output_dir=self.output_dir
         )
         
         return sandbox.execute(command)
