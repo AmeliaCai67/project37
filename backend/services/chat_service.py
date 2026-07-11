@@ -121,7 +121,7 @@ class ChatService:
         if ws.type == "external":
             # Copy isolation: agent works on internal copy
             copy_dir = WorkspaceService.get_internal_copy_dir(user.id, ws.id)
-            # TODO: sync files from source_path to copy_dir (handled in Task 8)
+            WorkspaceService.sync_external_to_copy(ws, copy_dir)
             working_dir = str(copy_dir)
         else:
             working_dir = str(FileService._get_user_dir(user.id))

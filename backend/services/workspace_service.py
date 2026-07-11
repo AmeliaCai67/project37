@@ -1,3 +1,4 @@
+import shutil
 from datetime import datetime
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -92,3 +93,16 @@ class WorkspaceService:
         base = Path(FileService._get_user_dir(user_id)) / "mounts" / str(workspace_id)
         base.mkdir(parents=True, exist_ok=True)
         return base
+
+    @staticmethod
+    def sync_external_to_copy(workspace: Workspace, copy_dir: Path) -> None:
+        if workspace.type != "external":
+            return
+        src = Path(workspace.source_path).resolve()
+        copy_dir.mkdir(parents=True, exist_ok=True)
+
+        allowed_ext = {".csv", ".xlsx", ".xls", ".json", ".txt", ".md", ".pdf", ".docx"}
+        for f in src.iterdir():
+            if f.is_file() and f.suffix.lower() in allowed_ext:
+                dest = copy_dir / f.name
+                shutil.copy2(f, dest)
