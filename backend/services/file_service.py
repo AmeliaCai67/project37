@@ -55,6 +55,7 @@ class FileService:
         user: User,
         file_content: bytes,
         original_filename: str,
+        workspace_id: Optional[int] = None,
     ) -> File:
         """保存上传的文件"""
         # 检查文件扩展名
@@ -103,6 +104,7 @@ class FileService:
             file_hash=file_hash,
             status="pending",  # 等待处理
             uploaded_at=datetime.utcnow(),
+            workspace_id=workspace_id,
         )
         
         db.add(db_file)

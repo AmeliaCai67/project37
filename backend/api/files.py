@@ -1,7 +1,7 @@
 """文件相关路由"""
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile, File, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, File, Query, status
 from sqlalchemy.orm import Session
 
 from config import settings
@@ -10,6 +10,9 @@ from models.user import User, Role
 from schemas.file import FileResponse, FileListResponse
 from schemas.common import BaseResponse, PaginatedResponse
 from services.file_service import FileService
+from services.workspace_service import WorkspaceService
+from services.roadmap_service import RoadmapService
+from models.workspace import Workspace
 from api.deps import get_current_user, require_admin
 from core.logging import get_logger
 
@@ -22,6 +25,7 @@ async def upload_file(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    workspace_id: Optional[int] = Form(None),
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -33,22 +37,36 @@ async def upload_file(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=f"文件大小超过限制（最大 {settings.MAX_UPLOAD_SIZE // (1024*1024)}MB）",
             )
+
+        # 解析目标工作空间
+        if workspace_id is None:
+            ws = WorkspaceService.get_or_create_internal(db, current_user)
+        else:
+            ws = db.query(Workspace).filter_by(id=workspace_id, owner_id=current_user.id).first()
+            if not ws:
+                raise ValueError("Workspace not found")
+
         content = await file.read()
         db_file = FileService.save_upload(
             db=db,
             user=current_user,
             file_content=content,
             original_filename=file.filename,
+            workspace_id=ws.id,
         )
 
         # 文件内容提取放到后台任务，不阻塞上传响应
         background_tasks.add_task(FileService.extract_content_in_background, db_file.id)
+
+        # 触发工作空间数据画像分析（后台任务）
+        background_tasks.add_task(RoadmapService.build_roadmap_in_background, ws.id)
 
         return BaseResponse(data={
             "id": db_file.id,
             "filename": db_file.original_name,
             "size": db_file.size,
             "status": db_file.status,
+            "workspace_id": db_file.workspace_id,
         })
     except ValueError as e:
         raise HTTPException(

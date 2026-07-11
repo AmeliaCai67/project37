@@ -49,6 +49,7 @@ class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[int] = None  # None 表示新建对话
     file_ids: Optional[List[int]] = None   # 关联的文件
+    workspace_id: Optional[int] = None     # 关联的工作空间
 
 
 class ChatResponse(BaseModel):

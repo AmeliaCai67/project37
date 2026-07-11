@@ -126,6 +126,18 @@ class RoadmapService:
         return questions[:5]
 
     @staticmethod
+    async def build_roadmap_in_background(workspace_id: int) -> None:
+        """后台任务：为指定工作空间构建数据画像（创建独立 session）。"""
+        from models.base import SessionLocal
+        db = SessionLocal()
+        try:
+            ws = db.query(Workspace).filter_by(id=workspace_id).first()
+            if ws:
+                await RoadmapService.build_roadmap(ws)
+        finally:
+            db.close()
+
+    @staticmethod
     def _summarize_graph(graph: Dict[str, Any]) -> str:
         """将图谱信息转换为适合 LLM 理解的文本摘要。"""
         lines = ["表格："]

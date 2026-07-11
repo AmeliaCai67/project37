@@ -5,8 +5,10 @@ from sqlalchemy.orm import Session
 
 from models.conversation import Conversation, MessageRole
 from models.user import User
+from models.workspace import Workspace
 from services.conversation_service import ConversationService
 from services.file_service import FileService
+from services.workspace_service import WorkspaceService
 from services.agent_service import AgentService
 from core.llm_client import llm_client
 from core.logging import get_logger
@@ -105,6 +107,27 @@ class ChatService:
             history.append(a)
 
         return history
+
+    @staticmethod
+    def _resolve_workspace_and_dirs(db: Session, user: User, workspace_id: Optional[int] = None):
+        """解析工作空间并返回 working_dir / output_dir"""
+        if workspace_id:
+            ws = db.query(Workspace).filter_by(id=workspace_id, owner_id=user.id).first()
+            if not ws:
+                raise ValueError("Workspace not found")
+        else:
+            ws = WorkspaceService.get_or_create_internal(db, user)
+
+        if ws.type == "external":
+            # Copy isolation: agent works on internal copy
+            copy_dir = WorkspaceService.get_internal_copy_dir(user.id, ws.id)
+            # TODO: sync files from source_path to copy_dir (handled in Task 8)
+            working_dir = str(copy_dir)
+        else:
+            working_dir = str(FileService._get_user_dir(user.id))
+
+        output_dir = ws.output_path
+        return ws, working_dir, output_dir
     
     @staticmethod
     async def chat(
@@ -113,6 +136,7 @@ class ChatService:
         message: str,
         conversation_id: Optional[int] = None,
         file_ids: Optional[List[int]] = None,
+        workspace_id: Optional[int] = None,
     ) -> Dict:
         """
         处理聊天请求 - ReAct Agent 模式（非流式）
@@ -150,9 +174,11 @@ class ChatService:
         # 构建对话历史（多轮对话记忆）
         history = ChatService._build_conversation_history(db, conversation_id)
 
+        # 解析工作空间目录
+        _, working_dir, output_dir = ChatService._resolve_workspace_and_dirs(db, user, workspace_id)
+
         # 初始化 Agent
-        working_dir = FileService._get_user_dir(user.id)
-        agent = AgentService(working_dir=working_dir)
+        agent = AgentService(working_dir=working_dir, output_dir=output_dir)
 
         # 运行 Agent
         try:
@@ -191,6 +217,7 @@ class ChatService:
         message: str,
         conversation_id: Optional[int] = None,
         file_ids: Optional[List[int]] = None,
+        workspace_id: Optional[int] = None,
     ):
         """
         流式聊天 - ReAct Agent 模式
@@ -221,9 +248,11 @@ class ChatService:
         # 构建对话历史（多轮对话记忆）
         history = ChatService._build_conversation_history(db, conversation_id)
 
+        # 解析工作空间目录
+        _, working_dir, output_dir = ChatService._resolve_workspace_and_dirs(db, user, workspace_id)
+
         # 初始化 Agent
-        working_dir = FileService._get_user_dir(user.id)
-        agent = AgentService(working_dir=working_dir)
+        agent = AgentService(working_dir=working_dir, output_dir=output_dir)
 
         # 发送 conversation_id 给前端（新对话时前端需要知道 ID）
         yield f'data: {{"type": "conversation_id", "conversation_id": {conversation.id}}}\n\n'
