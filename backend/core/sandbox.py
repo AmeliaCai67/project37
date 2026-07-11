@@ -95,9 +95,10 @@ class RestrictedPythonSandbox:
         'multiprocessing', 'threading', 'asyncio', 'concurrent'
     }
     
-    def __init__(self, user_id: int, working_dir: Path, timeout: int = 30):
+    def __init__(self, user_id: int = 0, working_dir: Path = None, output_dir: Path = None, timeout: int = 30):
         self.user_id = user_id
-        self.working_dir = Path(working_dir)
+        self.working_dir = Path(working_dir) if working_dir else Path(".")
+        self.output_dir = Path(output_dir) if output_dir else None
         self.timeout = timeout
     
     def _check_code_safety(self, code: str) -> tuple[bool, str]:
@@ -147,16 +148,20 @@ class RestrictedPythonSandbox:
     def _create_sandbox_script(self, user_code: str) -> str:
         """创建带沙箱限制的 Python 脚本"""
         working_dir_str = str(self.working_dir.resolve())
+        output_dir_str = str(self.output_dir.resolve()) if self.output_dir else None
 
         # 动态发现 site-packages 路径，让第三方包能正常读取自身资源文件
         site_pkg_paths = self._get_site_packages_paths()
         site_pkg_literal = ",\n        ".join(repr(p) for p in site_pkg_paths)
+
+        output_dir_literal = repr(output_dir_str) if output_dir_str else "None"
 
         sandbox_wrapper = f'''
 # 沙箱环境设置
 import sys
 import builtins
 import os as _os
+from pathlib import Path as _Path
 
 # 保存原始 open
 _original_open = open
@@ -166,6 +171,10 @@ _PYTHON_LIB_PATHS = []
 for _p in sys.path:
     if _p and _os.path.isdir(_p):
         _PYTHON_LIB_PATHS.append(_os.path.realpath(_p))
+
+# 工作目录与输出目录
+_WORKING_DIR = {repr(working_dir_str)}
+_OUTPUT_DIR = {output_dir_literal}
 
 # 允许的系统路径（主要用于 pandas/numpy/matplotlib 等库的正常运行）
 _ALLOWED_SYSTEM_PATHS = [
@@ -179,48 +188,72 @@ _ALLOWED_SYSTEM_PATHS = [
 ] + _PYTHON_LIB_PATHS
 
 def _is_allowed_path(path_str: str) -> bool:
-    """检查路径是否允许访问"""
+    """检查路径是否允许读取"""
     # 空路径检查
     if not path_str:
         return False
-    
+
     # 转换为绝对路径
     try:
         resolved = _os.path.normpath(_os.path.abspath(path_str))
     except Exception:
         return False
-    
+
     # 检查是否在工作目录内
-    if resolved.startswith('{working_dir_str}'):
+    if resolved.startswith(_WORKING_DIR):
         return True
-    
+
+    # 检查是否在输出目录内（允许读取自己写入的结果）
+    if _OUTPUT_DIR and resolved.startswith(_OUTPUT_DIR):
+        return True
+
     # 检查是否在允许的系统路径内
     for allowed in _ALLOWED_SYSTEM_PATHS:
         if resolved.startswith(allowed):
             return True
-    
+
     return False
 
-def _restricted_open(path, *args, **kwargs):
-    """限制文件访问"""
+def _safe_open(path, mode='r', *args, **kwargs):
+    """限制文件访问：写操作只能在 output_dir，读操作限制在 working_dir / output_dir / 系统路径"""
     # 处理文件描述符
     if isinstance(path, int):
-        return _original_open(path, *args, **kwargs)
-    
+        return _original_open(path, mode, *args, **kwargs)
+
+    p = _Path(path)
+
+    # 写/追加/创建模式必须位于 output_dir
+    if any(m in mode for m in 'wax+'):
+        if _OUTPUT_DIR is None:
+            raise PermissionError("Write operations are not allowed in this sandbox")
+
+        out = _Path(_OUTPUT_DIR).resolve()
+
+        # 将虚拟的 /output 前缀映射到实际输出目录
+        if p.is_absolute() and str(p).startswith('/output'):
+            relative = str(p)[len('/output'):]
+            if relative.startswith('/'):
+                relative = relative[1:]
+            p = out / relative
+
+        resolved = p.resolve()
+        if not resolved.is_relative_to(out):
+            raise PermissionError(f"Cannot write outside output directory: {{path}}")
+        return _original_open(resolved, mode, *args, **kwargs)
+
+    # 读模式：相对路径基于工作目录解析
     path_str = str(path)
-    
-    # 如果是相对路径，先转换为绝对路径
     if not _os.path.isabs(path_str):
-        path_str = _os.path.join('{working_dir_str}', path_str)
-    
-    # 检查是否允许访问
-    if not _is_allowed_path(path_str):
+        path_str = _os.path.join(_WORKING_DIR, path_str)
+
+    resolved_str = _os.path.normpath(_os.path.abspath(path_str))
+    if not _is_allowed_path(resolved_str):
         raise PermissionError(f"权限错误：无法访问工作目录外的文件")
-    
-    return _original_open(path, *args, **kwargs)
+
+    return _original_open(resolved_str, mode, *args, **kwargs)
 
 # 替换 open 函数
-builtins.open = _restricted_open
+builtins.open = _safe_open
 
 # 重定向标准输入
 class _RestrictedInput:
