@@ -95,9 +95,11 @@ class RestrictedPythonSandbox:
         'multiprocessing', 'threading', 'asyncio', 'concurrent'
     }
     
-    def __init__(self, user_id: int = 0, working_dir: Path = None, output_dir: Path = None, timeout: int = 30):
+    def __init__(self, user_id: int = 0, working_dir: Path = None, timeout: int = 30, output_dir: Path = None):
+        if working_dir is None:
+            raise ValueError("working_dir is required")
         self.user_id = user_id
-        self.working_dir = Path(working_dir) if working_dir else Path(".")
+        self.working_dir = Path(working_dir)
         self.output_dir = Path(output_dir) if output_dir else None
         self.timeout = timeout
     
@@ -166,11 +168,14 @@ from pathlib import Path as _Path
 # 保存原始 open
 _original_open = open
 
-# 动态收集 Python 标准库路径
+# 动态收集 Python 标准库路径（排除脚本自身所在目录，避免临时目录被误加入允许列表）
+_SCRIPT_DIR = _os.path.dirname(_os.path.realpath(__file__))
 _PYTHON_LIB_PATHS = []
 for _p in sys.path:
     if _p and _os.path.isdir(_p):
-        _PYTHON_LIB_PATHS.append(_os.path.realpath(_p))
+        _rp = _os.path.realpath(_p)
+        if _rp != _SCRIPT_DIR:
+            _PYTHON_LIB_PATHS.append(_rp)
 
 # 工作目录与输出目录
 _WORKING_DIR = {repr(working_dir_str)}
@@ -199,17 +204,26 @@ def _is_allowed_path(path_str: str) -> bool:
     except Exception:
         return False
 
+    def _is_under(base: str, target: str) -> bool:
+        """严格判断 target 是否位于 base 目录下（避免前缀误判）"""
+        if not base:
+            return False
+        try:
+            return _os.path.commonpath([target, base]) == base
+        except ValueError:
+            return False
+
     # 检查是否在工作目录内
-    if resolved.startswith(_WORKING_DIR):
+    if _is_under(_WORKING_DIR, resolved):
         return True
 
     # 检查是否在输出目录内（允许读取自己写入的结果）
-    if _OUTPUT_DIR and resolved.startswith(_OUTPUT_DIR):
+    if _OUTPUT_DIR and _is_under(_OUTPUT_DIR, resolved):
         return True
 
     # 检查是否在允许的系统路径内
     for allowed in _ALLOWED_SYSTEM_PATHS:
-        if resolved.startswith(allowed):
+        if _is_under(allowed, resolved):
             return True
 
     return False
@@ -229,9 +243,10 @@ def _safe_open(path, mode='r', *args, **kwargs):
 
         out = _Path(_OUTPUT_DIR).resolve()
 
-        # 将虚拟的 /output 前缀映射到实际输出目录
-        if p.is_absolute() and str(p).startswith('/output'):
-            relative = str(p)[len('/output'):]
+        # 将虚拟的 /output 前缀映射到实际输出目录（仅匹配 /output 或 /output/）
+        path_str = str(p)
+        if p.is_absolute() and (path_str == '/output' or path_str.startswith('/output/')):
+            relative = path_str[len('/output'):]
             if relative.startswith('/'):
                 relative = relative[1:]
             p = out / relative
