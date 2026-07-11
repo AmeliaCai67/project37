@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from sqlalchemy.orm import Session
 from models.workspace import Workspace
@@ -67,6 +68,8 @@ class WorkspaceService:
     @staticmethod
     def set_output_path(db: Session, user: User, workspace_id: int, output_path: str) -> Workspace:
         p = Path(output_path).resolve()
+        if p.exists() and not p.is_dir():
+            raise ValueError(f"Invalid output path: {output_path}")
         p.mkdir(parents=True, exist_ok=True)
         if not p.is_dir():
             raise ValueError(f"Invalid output path: {output_path}")
@@ -79,6 +82,10 @@ class WorkspaceService:
         db.commit()
         db.refresh(ws)
         return ws
+
+    @staticmethod
+    def get_output_date_dir(workspace: Workspace) -> Path:
+        return Path(workspace.output_path) / datetime.now().strftime("%Y-%m-%d")
 
     @staticmethod
     def get_internal_copy_dir(user_id: int, workspace_id: int) -> Path:

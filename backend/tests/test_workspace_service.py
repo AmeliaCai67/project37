@@ -1,3 +1,5 @@
+from datetime import datetime
+from pathlib import Path
 import pytest
 from services.workspace_service import WorkspaceService
 from models.workspace import Workspace
@@ -13,6 +15,7 @@ def test_get_or_create_internal_creates_once(db_session):
     ws2 = WorkspaceService.get_or_create_internal(db_session, user)
     assert ws1.id == ws2.id
     assert ws1.type == "internal"
+    assert ws1.output_path.endswith("37-output")
 
 
 def test_mount_external_workspace(db_session, tmp_path):
@@ -28,7 +31,7 @@ def test_mount_external_workspace(db_session, tmp_path):
     ws = WorkspaceService.mount(db_session, user, str(src), "我的数据")
     assert ws.type == "external"
     assert ws.source_path == str(src)
-    assert "37-output" in ws.output_path
+    assert ws.output_path == str(src / "37-output")
 
 
 def test_unmount_deletes_record(db_session, tmp_path):
@@ -43,3 +46,15 @@ def test_unmount_deletes_record(db_session, tmp_path):
     WorkspaceService.unmount(db_session, user, ws.id)
 
     assert db_session.query(Workspace).filter_by(id=ws.id).first() is None
+
+
+def test_get_output_date_dir(db_session, tmp_path):
+    from models.user import User
+    user = User(username="u4", hashed_password="x", role="admin")
+    db_session.add(user)
+    db_session.commit()
+
+    ws = WorkspaceService.get_or_create_internal(db_session, user)
+    date_dir = WorkspaceService.get_output_date_dir(ws)
+    assert date_dir.parent == Path(ws.output_path)
+    assert date_dir.name == datetime.now().strftime("%Y-%m-%d")
