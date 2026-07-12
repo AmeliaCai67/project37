@@ -27,3 +27,4 @@ class User(Base):
     # Relationships
     files = relationship("File", back_populates="owner", cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="owner", cascade="all, delete-orphan")
+    workspaces = relationship("Workspace", back_populates="owner", cascade="all, delete-orphan")

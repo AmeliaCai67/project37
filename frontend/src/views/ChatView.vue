@@ -20,6 +20,7 @@
 
     <!-- ── 右侧聊天区 ── -->
     <div class="chat-main">
+      <WorkspaceBar @mount="showRoadmapModal = false; showMountDialog = true" />
       <!-- 文件选择栏（只读用户） -->
       <div v-if="userStore.isReadonly" class="file-selection-bar">
         <div class="selection-label">
@@ -75,7 +76,9 @@
       <!-- ── 消息区域 ── -->
       <div ref="messagesContainer" class="messages-area">
         <!-- 欢迎面板 -->
-        <!-- ═══ 欢迎面板 ═══ -->
+        <RecommendedQuestions />
+
+      <!-- ═══ 欢迎面板 ═══ -->
         <div v-if="chatStore.messages.length === 0" class="welcome-panel">
           <!-- 沙漏双三角印章 -->
           <div class="stamp-block">
@@ -138,6 +141,11 @@
                   <div class="answer-text" v-html="renderMarkdown(message.content)"></div>
                 </div>
               </div>
+              <div v-if="message.savedPath" class="saved-hint">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                结果已保存到：{{ message.savedPath }}
+                <button class="change-path-link" @click="editOutputPath">修改位置</button>
+              </div>
             </div>
 
             <div class="message-time">{{ formatTime(message.timestamp) }}</div>
@@ -181,17 +189,56 @@
       </div>
     </div>
   </div>
+
+  <WelcomeRoadmapModal
+    :visible="showRoadmapModal"
+    :roadmap="chatStore.roadmap"
+    :workspace="chatStore.currentWorkspace"
+    @close="showRoadmapModal = false"
+    @ask="q => { inputMessage.value = q; sendMessage() }"
+  />
+
+  <Teleport to="body">
+    <div v-if="showMountDialog" class="file-selector-overlay" @click.self="showMountDialog = false">
+      <div class="file-selector-popup">
+        <div class="file-selector-header">
+          <h4>挂载本地文件夹</h4>
+          <button class="close-btn" @click="showMountDialog = false" aria-label="关闭">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="mount-form">
+          <label>
+            文件夹路径
+            <input v-model="mountPath" type="text" placeholder="/Users/teacher/期末数据" />
+          </label>
+          <label>
+            名称（可选）
+            <input v-model="mountName" type="text" placeholder="期末数据" />
+          </label>
+        </div>
+        <div class="file-selector-actions">
+          <button class="btn btn-secondary" @click="showMountDialog = false">取消</button>
+          <button class="btn btn-primary" @click="handleMount" :disabled="!mountPath.trim()">挂载</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { filesApi } from '@/api/files'
+import { workspacesApi } from '@/api/workspaces'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import AgentSteps from '@/components/AgentSteps.vue'
+import WorkspaceBar from '@/components/WorkspaceBar.vue'
+import RecommendedQuestions from '@/components/RecommendedQuestions.vue'
+import WelcomeRoadmapModal from '@/components/WelcomeRoadmapModal.vue'
 
 const userStore = useUserStore()
 const chatStore = useChatStore()
@@ -205,6 +252,10 @@ const showFileSelector = ref(false)
 const availableFiles = ref([])
 const tempSelectedFiles = ref([])
 const risingPapers = ref(new Set())
+const showRoadmapModal = ref(false)
+const showMountDialog = ref(false)
+const mountPath = ref('')
+const mountName = ref('')
 
 function handleTvOff(messageId) {
   risingPapers.value.add(messageId)
@@ -283,16 +334,69 @@ async function loadConversations() {
   await chatStore.fetchConversations()
 }
 
+function shouldShowRoadmapModal() {
+  const key = `hide_welcome_roadmap_${new Date().toISOString().slice(0, 10)}`
+  return localStorage.getItem(key) !== '1'
+}
+
+function editOutputPath() {
+  const ws = chatStore.currentWorkspace
+  if (!ws) return
+  const newPath = prompt('修改输出目录：', ws.output_path)
+  if (newPath && newPath !== ws.output_path) {
+    // handled by WorkspaceBar; this is a fallback inline edit
+  }
+}
+
+async function loadWorkspaceAndRoadmap() {
+  await chatStore.fetchWorkspaces()
+  if (chatStore.currentWorkspaceId) {
+    await chatStore.fetchRoadmap()
+    if (chatStore.roadmap?.questions?.length && shouldShowRoadmapModal()) {
+      showRoadmapModal.value = true
+    }
+  }
+}
+
+async function handleMount() {
+  if (!mountPath.value.trim()) return
+  try {
+    await workspacesApi.mount({
+      local_path: mountPath.value.trim(),
+      name: mountName.value.trim() || '本地文件夹'
+    })
+    mountPath.value = ''
+    mountName.value = ''
+    showMountDialog.value = false
+    await loadWorkspaceAndRoadmap()
+    if (chatStore.roadmap?.questions?.length) {
+      showRoadmapModal.value = true
+    }
+  } catch (e) {
+    alert('挂载失败：' + (e.response?.data?.detail || e.message))
+  }
+}
+
+function onFilesUpdated() {
+  loadFiles()
+}
+
 onMounted(() => {
   loadFiles()
   loadConversations()
-  const conversationId = route.params.id
+  loadWorkspaceAndRoadmap()
+  const conversationId = route.params?.id
   if (conversationId) {
     chatStore.loadConversation(Number(conversationId))
   }
+  window.addEventListener('files-updated', onFilesUpdated)
 })
 
-watch(() => route.params.id, (newId) => {
+onUnmounted(() => {
+  window.removeEventListener('files-updated', onFilesUpdated)
+})
+
+watch(() => route.params?.id, (newId) => {
   if (newId) {
     chatStore.loadConversation(Number(newId))
   }
@@ -912,6 +1016,25 @@ watch(() => route.params.id, (newId) => {
   margin-top: var(--space-1);
 }
 
+.saved-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-2);
+  font-size: 12px;
+  color: var(--ink-60);
+}
+
+.change-path-link {
+  background: none;
+  border: none;
+  color: var(--blue-60);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  text-decoration: underline;
+}
+
 .message-item.user .message-time { text-align: right; }
 
 /* ── 正在输入 ── */
@@ -1012,6 +1135,29 @@ watch(() => route.params.id, (newId) => {
 }
 
 .tip.readonly { color: var(--text-tertiary); }
+
+.mount-form {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mount-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-70);
+}
+
+.mount-form input {
+  padding: 8px 10px;
+  border: 0.5px solid var(--ink-20);
+  border-radius: 4px;
+  font-size: 14px;
+  background: var(--paper);
+}
 
 /* ══════════════════════════════════════
    响应式

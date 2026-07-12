@@ -42,9 +42,17 @@ class FileService:
         return db.query(File).filter(File.id == file_id).first()
     
     @staticmethod
-    def get_user_files(db: Session, user_id: int, skip: int = 0, limit: int = 100) -> tuple[List[File], int]:
+    def get_user_files(
+        db: Session,
+        user_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        workspace_id: Optional[int] = None,
+    ) -> tuple[List[File], int]:
         """获取用户的文件列表"""
         query = db.query(File).filter(File.owner_id == user_id)
+        if workspace_id is not None:
+            query = query.filter(File.workspace_id == workspace_id)
         total = query.count()
         files = query.order_by(File.uploaded_at.desc()).offset(skip).limit(limit).all()
         return files, total
@@ -55,6 +63,7 @@ class FileService:
         user: User,
         file_content: bytes,
         original_filename: str,
+        workspace_id: Optional[int] = None,
     ) -> File:
         """保存上传的文件"""
         # 检查文件扩展名
@@ -103,6 +112,7 @@ class FileService:
             file_hash=file_hash,
             status="pending",  # 等待处理
             uploaded_at=datetime.utcnow(),
+            workspace_id=workspace_id,
         )
         
         db.add(db_file)

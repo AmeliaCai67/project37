@@ -95,9 +95,12 @@ class RestrictedPythonSandbox:
         'multiprocessing', 'threading', 'asyncio', 'concurrent'
     }
     
-    def __init__(self, user_id: int, working_dir: Path, timeout: int = 30):
+    def __init__(self, user_id: int = 0, working_dir: Path = None, timeout: int = 30, output_dir: Path = None):
+        if working_dir is None:
+            raise ValueError("working_dir is required")
         self.user_id = user_id
         self.working_dir = Path(working_dir)
+        self.output_dir = Path(output_dir) if output_dir else None
         self.timeout = timeout
     
     def _check_code_safety(self, code: str) -> tuple[bool, str]:
@@ -147,25 +150,37 @@ class RestrictedPythonSandbox:
     def _create_sandbox_script(self, user_code: str) -> str:
         """创建带沙箱限制的 Python 脚本"""
         working_dir_str = str(self.working_dir.resolve())
+        output_dir_str = str(self.output_dir.resolve()) if self.output_dir else None
 
         # 动态发现 site-packages 路径，让第三方包能正常读取自身资源文件
         site_pkg_paths = self._get_site_packages_paths()
         site_pkg_literal = ",\n        ".join(repr(p) for p in site_pkg_paths)
+
+        output_dir_literal = repr(output_dir_str) if output_dir_str else "None"
 
         sandbox_wrapper = f'''
 # 沙箱环境设置
 import sys
 import builtins
 import os as _os
+import io as _io
+from pathlib import Path as _Path
 
 # 保存原始 open
 _original_open = open
 
-# 动态收集 Python 标准库路径
+# 动态收集 Python 标准库路径（排除脚本自身所在目录，避免临时目录被误加入允许列表）
+_SCRIPT_DIR = _os.path.dirname(_os.path.realpath(__file__))
 _PYTHON_LIB_PATHS = []
 for _p in sys.path:
     if _p and _os.path.isdir(_p):
-        _PYTHON_LIB_PATHS.append(_os.path.realpath(_p))
+        _rp = _os.path.realpath(_p)
+        if _rp != _SCRIPT_DIR:
+            _PYTHON_LIB_PATHS.append(_rp)
+
+# 工作目录与输出目录
+_WORKING_DIR = {repr(working_dir_str)}
+_OUTPUT_DIR = {output_dir_literal}
 
 # 允许的系统路径（主要用于 pandas/numpy/matplotlib 等库的正常运行）
 _ALLOWED_SYSTEM_PATHS = [
@@ -174,53 +189,88 @@ _ALLOWED_SYSTEM_PATHS = [
     '/usr/lib',      # Unix 系统库
     '/Library',      # macOS CLI Tools + Frameworks（含 Python.framework）
     '/opt',          # 可选软件包
-    '/etc',          # 系统配置文件（mimetypes 等）
     {site_pkg_literal},  # Python site-packages（第三方包资源文件）
 ] + _PYTHON_LIB_PATHS
 
 def _is_allowed_path(path_str: str) -> bool:
-    """检查路径是否允许访问"""
+    """检查路径是否允许读取"""
     # 空路径检查
     if not path_str:
         return False
-    
+
     # 转换为绝对路径
     try:
         resolved = _os.path.normpath(_os.path.abspath(path_str))
     except Exception:
         return False
-    
+
+    def _is_under(base: str, target: str) -> bool:
+        """严格判断 target 是否位于 base 目录下（避免前缀误判）"""
+        if not base:
+            return False
+        try:
+            return _os.path.commonpath([target, base]) == base
+        except ValueError:
+            return False
+
     # 检查是否在工作目录内
-    if resolved.startswith('{working_dir_str}'):
+    if _is_under(_WORKING_DIR, resolved):
         return True
-    
+
+    # 检查是否在输出目录内（允许读取自己写入的结果）
+    if _OUTPUT_DIR and _is_under(_OUTPUT_DIR, resolved):
+        return True
+
     # 检查是否在允许的系统路径内
     for allowed in _ALLOWED_SYSTEM_PATHS:
-        if resolved.startswith(allowed):
+        if _is_under(allowed, resolved):
             return True
-    
+
     return False
 
-def _restricted_open(path, *args, **kwargs):
-    """限制文件访问"""
+def _safe_open(path, mode='r', *args, **kwargs):
+    """限制文件访问：写操作只能在 output_dir，读操作限制在 working_dir / output_dir / 系统路径"""
     # 处理文件描述符
     if isinstance(path, int):
-        return _original_open(path, *args, **kwargs)
-    
-    path_str = str(path)
-    
-    # 如果是相对路径，先转换为绝对路径
-    if not _os.path.isabs(path_str):
-        path_str = _os.path.join('{working_dir_str}', path_str)
-    
-    # 检查是否允许访问
-    if not _is_allowed_path(path_str):
-        raise PermissionError(f"权限错误：无法访问工作目录外的文件")
-    
-    return _original_open(path, *args, **kwargs)
+        return _original_open(path, mode, *args, **kwargs)
 
-# 替换 open 函数
-builtins.open = _restricted_open
+    p = _Path(path)
+
+    # 写/追加/创建模式必须位于 output_dir
+    if any(m in mode for m in 'wax+'):
+        if _OUTPUT_DIR is None:
+            raise PermissionError("Write operations are not allowed in this sandbox")
+
+        out = _Path(_OUTPUT_DIR).resolve()
+
+        # 将虚拟的 /sandbox_output 前缀映射到实际输出目录
+        # 使用 /sandbox_output 而非 /output，避免与用户本地 /output 目录冲突
+        path_str = str(p)
+        if p.is_absolute() and (path_str == '/sandbox_output' or path_str.startswith('/sandbox_output/')):
+            relative = path_str[len('/sandbox_output'):]
+            if relative.startswith('/'):
+                relative = relative[1:]
+            p = out / relative
+
+        resolved = p.resolve()
+        if not resolved.is_relative_to(out):
+            raise PermissionError(f"Cannot write outside output directory: {{path}}")
+        return _original_open(resolved, mode, *args, **kwargs)
+
+    # 读模式：相对路径基于工作目录解析
+    path_str = str(path)
+    if not _os.path.isabs(path_str):
+        path_str = _os.path.join(_WORKING_DIR, path_str)
+
+    resolved_str = _os.path.normpath(_os.path.abspath(path_str))
+    if not _is_allowed_path(resolved_str):
+        raise PermissionError(f"权限错误：无法访问工作目录外的文件")
+
+    return _original_open(resolved_str, mode, *args, **kwargs)
+
+# 替换 open 函数（pathlib / pandas 等通过 io.open 访问文件）
+builtins.open = _safe_open
+_io.open = _safe_open
 
 # 重定向标准输入
 class _RestrictedInput:
@@ -304,7 +354,7 @@ builtins.input = _RestrictedInput()
                     module_name = match.group(1) if match else "未知模块"
                     return {**base_response,
                         "error_type": "module_not_found",
-                        "error": f"ModuleNotFoundError: 未找到模块 '{module_name}'，请先安装（如 pip install {module_name}）\n{error.strip()}"}
+                        "error": f"ImportError: ModuleNotFoundError: 未找到模块 '{module_name}'，请先安装（如 pip install {module_name}）\n{error.strip()}"}
                 elif "ImportError" in error:
                     match = re.search(r"No module named '([^']+)'", error)
                     module_name = match.group(1) if match else "未知模块"

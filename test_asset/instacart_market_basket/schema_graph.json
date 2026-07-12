@@ -1,0 +1,850 @@
+{
+  "meta": {
+    "tables": 6,
+    "columns": 23,
+    "associations": 60
+  },
+  "nodes": [
+    {
+      "id": "aisles",
+      "type": "table",
+      "columns": [
+        "aisle_id",
+        "aisle"
+      ],
+      "row_count": 134
+    },
+    {
+      "id": "departments",
+      "type": "table",
+      "columns": [
+        "department_id",
+        "department"
+      ],
+      "row_count": 21
+    },
+    {
+      "id": "order_products__prior",
+      "type": "table",
+      "columns": [
+        "order_id",
+        "product_id",
+        "add_to_cart_order",
+        "reordered"
+      ],
+      "row_count": 2000
+    },
+    {
+      "id": "order_products__train",
+      "type": "table",
+      "columns": [
+        "order_id",
+        "product_id",
+        "add_to_cart_order",
+        "reordered"
+      ],
+      "row_count": 50000
+    },
+    {
+      "id": "orders",
+      "type": "table",
+      "columns": [
+        "order_id",
+        "user_id",
+        "eval_set",
+        "order_number",
+        "order_dow",
+        "order_hour_of_day",
+        "days_since_prior_order"
+      ],
+      "row_count": 5000
+    },
+    {
+      "id": "products",
+      "type": "table",
+      "columns": [
+        "product_id",
+        "product_name",
+        "aisle_id",
+        "department_id"
+      ],
+      "row_count": 49688
+    },
+    {
+      "id": "aisles.aisle_id",
+      "type": "column",
+      "table": "aisles",
+      "column": "aisle_id",
+      "dtype": "numeric",
+      "cardinality": 134,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "aisles.aisle",
+      "type": "column",
+      "table": "aisles",
+      "column": "aisle",
+      "dtype": "string",
+      "cardinality": 134
+    },
+    {
+      "id": "departments.department_id",
+      "type": "column",
+      "table": "departments",
+      "column": "department_id",
+      "dtype": "numeric",
+      "cardinality": 21,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "departments.department",
+      "type": "column",
+      "table": "departments",
+      "column": "department",
+      "dtype": "string",
+      "cardinality": 21
+    },
+    {
+      "id": "order_products__prior.order_id",
+      "type": "column",
+      "table": "order_products__prior",
+      "column": "order_id",
+      "dtype": "numeric",
+      "cardinality": 213,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "order_products__prior.product_id",
+      "type": "column",
+      "table": "order_products__prior",
+      "column": "product_id",
+      "dtype": "numeric",
+      "cardinality": 1455,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "order_products__prior.add_to_cart_order",
+      "type": "column",
+      "table": "order_products__prior",
+      "column": "add_to_cart_order",
+      "dtype": "numeric",
+      "cardinality": 34
+    },
+    {
+      "id": "order_products__prior.reordered",
+      "type": "column",
+      "table": "order_products__prior",
+      "column": "reordered",
+      "dtype": "numeric",
+      "cardinality": 2
+    },
+    {
+      "id": "order_products__train.order_id",
+      "type": "column",
+      "table": "order_products__train",
+      "column": "order_id",
+      "dtype": "numeric",
+      "cardinality": 2774,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "order_products__train.product_id",
+      "type": "column",
+      "table": "order_products__train",
+      "column": "product_id",
+      "dtype": "numeric",
+      "cardinality": 2879,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "order_products__train.add_to_cart_order",
+      "type": "column",
+      "table": "order_products__train",
+      "column": "add_to_cart_order",
+      "dtype": "numeric",
+      "cardinality": 51
+    },
+    {
+      "id": "order_products__train.reordered",
+      "type": "column",
+      "table": "order_products__train",
+      "column": "reordered",
+      "dtype": "numeric",
+      "cardinality": 2
+    },
+    {
+      "id": "orders.order_id",
+      "type": "column",
+      "table": "orders",
+      "column": "order_id",
+      "dtype": "numeric",
+      "cardinality": 5000,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "orders.user_id",
+      "type": "column",
+      "table": "orders",
+      "column": "user_id",
+      "dtype": "numeric",
+      "cardinality": 309,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "orders.eval_set",
+      "type": "column",
+      "table": "orders",
+      "column": "eval_set",
+      "dtype": "string",
+      "cardinality": 3
+    },
+    {
+      "id": "orders.order_number",
+      "type": "column",
+      "table": "orders",
+      "column": "order_number",
+      "dtype": "numeric",
+      "cardinality": 100
+    },
+    {
+      "id": "orders.order_dow",
+      "type": "column",
+      "table": "orders",
+      "column": "order_dow",
+      "dtype": "numeric",
+      "cardinality": 7
+    },
+    {
+      "id": "orders.order_hour_of_day",
+      "type": "column",
+      "table": "orders",
+      "column": "order_hour_of_day",
+      "dtype": "numeric",
+      "cardinality": 24,
+      "semantic_type": "date_iso"
+    },
+    {
+      "id": "orders.days_since_prior_order",
+      "type": "column",
+      "table": "orders",
+      "column": "days_since_prior_order",
+      "dtype": "numeric",
+      "cardinality": 31,
+      "semantic_type": "date_iso"
+    },
+    {
+      "id": "products.product_id",
+      "type": "column",
+      "table": "products",
+      "column": "product_id",
+      "dtype": "numeric",
+      "cardinality": 5000,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "products.product_name",
+      "type": "column",
+      "table": "products",
+      "column": "product_name",
+      "dtype": "string",
+      "cardinality": 5000
+    },
+    {
+      "id": "products.aisle_id",
+      "type": "column",
+      "table": "products",
+      "column": "aisle_id",
+      "dtype": "numeric",
+      "cardinality": 133,
+      "semantic_type": "uuid"
+    },
+    {
+      "id": "products.department_id",
+      "type": "column",
+      "table": "products",
+      "column": "department_id",
+      "dtype": "numeric",
+      "cardinality": 21,
+      "semantic_type": "uuid"
+    }
+  ],
+  "edges": [
+    {
+      "source": "aisles.aisle_id",
+      "target": "products.aisle_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'aisle_id'"
+    },
+    {
+      "source": "departments.department_id",
+      "target": "order_products__prior.add_to_cart_order",
+      "type": "foreign_key_candidate",
+      "confidence": 1.0,
+      "detail": "100.0% 的 departments.department_id 值出现在 order_products__prior.add_to_cart_order 中; 基数 21 -> 34",
+      "metrics": {
+        "containment_ratio": 1.0,
+        "cardinality_source": 21,
+        "cardinality_target": 34
+      }
+    },
+    {
+      "source": "departments.department_id",
+      "target": "products.department_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'department_id'"
+    },
+    {
+      "source": "departments.department_id",
+      "target": "products.department_id",
+      "type": "content_overlap",
+      "confidence": 1.0,
+      "detail": "取值集合 Jaccard 相似度 100.00%"
+    },
+    {
+      "source": "departments.department_id",
+      "target": "products.department_id",
+      "type": "foreign_key_candidate",
+      "confidence": 1.0,
+      "detail": "100.0% 的 departments.department_id 值出现在 products.department_id 中; 基数 21 -> 21",
+      "metrics": {
+        "containment_ratio": 1.0,
+        "cardinality_source": 21,
+        "cardinality_target": 21
+      }
+    },
+    {
+      "source": "order_products__prior.add_to_cart_order",
+      "target": "order_products__train.add_to_cart_order",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'add_to_cart_order'"
+    },
+    {
+      "source": "order_products__prior.order_id",
+      "target": "order_products__train.order_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'order_id'"
+    },
+    {
+      "source": "order_products__prior.order_id",
+      "target": "orders.order_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'order_id'"
+    },
+    {
+      "source": "order_products__prior.order_id",
+      "target": "orders.user_id",
+      "type": "foreign_key_candidate",
+      "confidence": 1.0,
+      "detail": "100.0% 的 order_products__prior.order_id 值出现在 orders.user_id 中; 基数 213 -> 309",
+      "metrics": {
+        "containment_ratio": 1.0,
+        "cardinality_source": 213,
+        "cardinality_target": 309
+      }
+    },
+    {
+      "source": "order_products__prior.product_id",
+      "target": "order_products__train.product_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'product_id'"
+    },
+    {
+      "source": "order_products__prior.product_id",
+      "target": "products.product_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'product_id'"
+    },
+    {
+      "source": "order_products__prior.reordered",
+      "target": "order_products__train.reordered",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'reordered'"
+    },
+    {
+      "source": "order_products__prior.reordered",
+      "target": "order_products__train.reordered",
+      "type": "content_overlap",
+      "confidence": 1.0,
+      "detail": "取值集合 Jaccard 相似度 100.00%"
+    },
+    {
+      "source": "order_products__prior.reordered",
+      "target": "order_products__train.reordered",
+      "type": "foreign_key_candidate",
+      "confidence": 1.0,
+      "detail": "100.0% 的 order_products__prior.reordered 值出现在 order_products__train.reordered 中; 基数 2 -> 2",
+      "metrics": {
+        "containment_ratio": 1.0,
+        "cardinality_source": 2,
+        "cardinality_target": 2
+      }
+    },
+    {
+      "source": "order_products__train.order_id",
+      "target": "orders.order_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'order_id'"
+    },
+    {
+      "source": "order_products__train.product_id",
+      "target": "products.product_id",
+      "type": "same_column_name",
+      "confidence": 1.0,
+      "detail": "同名列 'product_id'"
+    },
+    {
+      "source": "orders.order_number",
+      "target": "products.aisle_id",
+      "type": "foreign_key_candidate",
+      "confidence": 1.0,
+      "detail": "100.0% 的 orders.order_number 值出现在 products.aisle_id 中; 基数 100 -> 133",
+      "metrics": {
+        "containment_ratio": 1.0,
+        "cardinality_source": 100,
+        "cardinality_target": 133
+      }
+    },
+    {
+      "source": "aisles.aisle_id",
+      "target": "products.aisle_id",
+      "type": "distribution_similar",
+      "confidence": 0.999,
+      "detail": "范围重叠 100.0%, 均值距离 0.01σ",
+      "metrics": {
+        "range_overlap": 1.0,
+        "mean_distance_sigma": 0.0087
+      }
+    },
+    {
+      "source": "order_products__prior.product_id",
+      "target": "order_products__train.product_id",
+      "type": "distribution_similar",
+      "confidence": 0.998,
+      "detail": "范围重叠 99.9%, 均值距离 0.01σ",
+      "metrics": {
+        "range_overlap": 0.9993,
+        "mean_distance_sigma": 0.0108
+      }
+    },
+    {
+      "source": "order_products__prior.reordered",
+      "target": "order_products__train.reordered",
+      "type": "distribution_similar",
+      "confidence": 0.995,
+      "detail": "范围重叠 100.0%, 均值距离 0.03σ",
+      "metrics": {
+        "range_overlap": 1.0,
+        "mean_distance_sigma": 0.0275
+      }
+    },
+    {
+      "source": "aisles.aisle_id",
+      "target": "products.aisle_id",
+      "type": "content_overlap",
+      "confidence": 0.993,
+      "detail": "取值集合 Jaccard 相似度 99.25%"
+    },
+    {
+      "source": "order_products__prior.product_id",
+      "target": "products.product_id",
+      "type": "distribution_similar",
+      "confidence": 0.993,
+      "detail": "范围重叠 100.0%, 均值距离 0.04σ",
+      "metrics": {
+        "range_overlap": 0.9996,
+        "mean_distance_sigma": 0.0436
+      }
+    },
+    {
+      "source": "order_products__train.product_id",
+      "target": "products.product_id",
+      "type": "distribution_similar",
+      "confidence": 0.991,
+      "detail": "范围重叠 100.0%, 均值距离 0.05σ",
+      "metrics": {
+        "range_overlap": 0.9996,
+        "mean_distance_sigma": 0.0542
+      }
+    },
+    {
+      "source": "departments.department_id",
+      "target": "products.department_id",
+      "type": "distribution_similar",
+      "confidence": 0.984,
+      "detail": "范围重叠 100.0%, 均值距离 0.10σ",
+      "metrics": {
+        "range_overlap": 1.0,
+        "mean_distance_sigma": 0.0974
+      }
+    },
+    {
+      "source": "order_products__prior.order_id",
+      "target": "orders.user_id",
+      "type": "content_overlap",
+      "confidence": 0.896,
+      "detail": "取值集合 Jaccard 相似度 89.57%"
+    },
+    {
+      "source": "orders.order_hour_of_day",
+      "target": "products.department_id",
+      "type": "distribution_similar",
+      "confidence": 0.878,
+      "detail": "范围重叠 87.0%, 均值距离 0.34σ",
+      "metrics": {
+        "range_overlap": 0.8696,
+        "mean_distance_sigma": 0.3401
+      }
+    },
+    {
+      "source": "departments.department_id",
+      "target": "orders.order_hour_of_day",
+      "type": "distribution_similar",
+      "confidence": 0.862,
+      "detail": "范围重叠 87.0%, 均值距离 0.44σ",
+      "metrics": {
+        "range_overlap": 0.8696,
+        "mean_distance_sigma": 0.4379
+      }
+    },
+    {
+      "source": "departments.department",
+      "target": "products.department_id",
+      "type": "semantic_column_name",
+      "confidence": 0.855,
+      "detail": "列名语义相似 'department' ↔ 'department_id' (余弦相似度 0.85)"
+    },
+    {
+      "source": "order_products__prior.add_to_cart_order",
+      "target": "orders.days_since_prior_order",
+      "type": "distribution_similar",
+      "confidence": 0.839,
+      "detail": "范围重叠 85.3%, 均值距离 0.53σ",
+      "metrics": {
+        "range_overlap": 0.8529,
+        "mean_distance_sigma": 0.5271
+      }
+    },
+    {
+      "source": "departments.department_id",
+      "target": "orders.days_since_prior_order",
+      "type": "distribution_similar",
+      "confidence": 0.829,
+      "detail": "范围重叠 66.7%, 均值距离 0.02σ",
+      "metrics": {
+        "range_overlap": 0.6667,
+        "mean_distance_sigma": 0.0242
+      }
+    },
+    {
+      "source": "orders.days_since_prior_order",
+      "target": "products.department_id",
+      "type": "distribution_similar",
+      "confidence": 0.825,
+      "detail": "范围重叠 66.7%, 均值距离 0.05σ",
+      "metrics": {
+        "range_overlap": 0.6667,
+        "mean_distance_sigma": 0.0525
+      }
+    },
+    {
+      "source": "order_products__prior.add_to_cart_order",
+      "target": "order_products__train.add_to_cart_order",
+      "type": "distribution_similar",
+      "confidence": 0.773,
+      "detail": "范围重叠 62.3%, 均值距离 0.23σ",
+      "metrics": {
+        "range_overlap": 0.6226,
+        "mean_distance_sigma": 0.2321
+      }
+    },
+    {
+      "source": "order_products__prior.order_id",
+      "target": "orders.user_id",
+      "type": "distribution_similar",
+      "confidence": 0.756,
+      "detail": "范围重叠 72.4%, 均值距离 0.64σ",
+      "metrics": {
+        "range_overlap": 0.724,
+        "mean_distance_sigma": 0.6384
+      }
+    },
+    {
+      "source": "aisles.aisle_id",
+      "target": "orders.order_number",
+      "type": "content_overlap",
+      "confidence": 0.746,
+      "detail": "取值集合 Jaccard 相似度 74.63%"
+    },
+    {
+      "source": "orders.order_number",
+      "target": "products.aisle_id",
+      "type": "content_overlap",
+      "confidence": 0.739,
+      "detail": "取值集合 Jaccard 相似度 73.88%"
+    },
+    {
+      "source": "order_products__train.add_to_cart_order",
+      "target": "orders.days_since_prior_order",
+      "type": "distribution_similar",
+      "confidence": 0.719,
+      "detail": "范围重叠 53.7%, 均值距离 0.30σ",
+      "metrics": {
+        "range_overlap": 0.537,
+        "mean_distance_sigma": 0.2971
+      }
+    },
+    {
+      "source": "aisles.aisle",
+      "target": "products.aisle_id",
+      "type": "semantic_column_name",
+      "confidence": 0.702,
+      "detail": "列名语义相似 'aisle' ↔ 'aisle_id' (余弦相似度 0.70)"
+    },
+    {
+      "source": "departments.department_id",
+      "target": "order_products__prior.add_to_cart_order",
+      "type": "distribution_similar",
+      "confidence": 0.697,
+      "detail": "范围重叠 60.6%, 均值距离 0.64σ",
+      "metrics": {
+        "range_overlap": 0.6061,
+        "mean_distance_sigma": 0.6374
+      }
+    },
+    {
+      "source": "order_products__prior.add_to_cart_order",
+      "target": "products.department_id",
+      "type": "distribution_similar",
+      "confidence": 0.677,
+      "detail": "范围重叠 60.6%, 均值距离 0.76σ",
+      "metrics": {
+        "range_overlap": 0.6061,
+        "mean_distance_sigma": 0.7589
+      }
+    },
+    {
+      "source": "order_products__train.add_to_cart_order",
+      "target": "orders.order_number",
+      "type": "distribution_similar",
+      "confidence": 0.674,
+      "detail": "范围重叠 53.5%, 均值距离 0.56σ",
+      "metrics": {
+        "range_overlap": 0.5354,
+        "mean_distance_sigma": 0.5624
+      }
+    },
+    {
+      "source": "order_products__prior.order_id",
+      "target": "products.aisle_id",
+      "type": "distribution_similar",
+      "confidence": 0.655,
+      "detail": "范围重叠 58.9%, 均值距离 0.84σ",
+      "metrics": {
+        "range_overlap": 0.5893,
+        "mean_distance_sigma": 0.84
+      }
+    },
+    {
+      "source": "aisles.aisle_id",
+      "target": "order_products__prior.order_id",
+      "type": "distribution_similar",
+      "confidence": 0.654,
+      "detail": "范围重叠 58.9%, 均值距离 0.84σ",
+      "metrics": {
+        "range_overlap": 0.5893,
+        "mean_distance_sigma": 0.8449
+      }
+    },
+    {
+      "source": "order_products__prior.product_id",
+      "target": "products.product_name",
+      "type": "semantic_column_name",
+      "confidence": 0.646,
+      "detail": "列名语义相似 'product_id' ↔ 'product_name' (余弦相似度 0.65)"
+    },
+    {
+      "source": "order_products__train.product_id",
+      "target": "products.product_name",
+      "type": "semantic_column_name",
+      "confidence": 0.646,
+      "detail": "列名语义相似 'product_id' ↔ 'product_name' (余弦相似度 0.65)"
+    },
+    {
+      "source": "departments.department_id",
+      "target": "order_products__train.add_to_cart_order",
+      "type": "distribution_similar",
+      "confidence": 0.633,
+      "detail": "范围重叠 37.7%, 均值距离 0.33σ",
+      "metrics": {
+        "range_overlap": 0.3774,
+        "mean_distance_sigma": 0.3321
+      }
+    },
+    {
+      "source": "order_products__prior.add_to_cart_order",
+      "target": "orders.order_hour_of_day",
+      "type": "distribution_similar",
+      "confidence": 0.62,
+      "detail": "范围重叠 64.7%, 均值距离 1.22σ",
+      "metrics": {
+        "range_overlap": 0.6471,
+        "mean_distance_sigma": 1.2213
+      }
+    },
+    {
+      "source": "departments.department_id",
+      "target": "order_products__prior.add_to_cart_order",
+      "type": "content_overlap",
+      "confidence": 0.618,
+      "detail": "取值集合 Jaccard 相似度 61.76%"
+    },
+    {
+      "source": "order_products__prior.add_to_cart_order",
+      "target": "products.department_id",
+      "type": "content_overlap",
+      "confidence": 0.618,
+      "detail": "取值集合 Jaccard 相似度 61.76%"
+    },
+    {
+      "source": "order_products__train.add_to_cart_order",
+      "target": "products.department_id",
+      "type": "distribution_similar",
+      "confidence": 0.617,
+      "detail": "范围重叠 37.7%, 均值距离 0.43σ",
+      "metrics": {
+        "range_overlap": 0.3774,
+        "mean_distance_sigma": 0.428
+      }
+    },
+    {
+      "source": "aisles.aisle_id",
+      "target": "orders.order_number",
+      "type": "distribution_similar",
+      "confidence": 0.582,
+      "detail": "范围重叠 74.4%, 均值距离 1.74σ",
+      "metrics": {
+        "range_overlap": 0.7444,
+        "mean_distance_sigma": 1.7398
+      }
+    },
+    {
+      "source": "orders.order_number",
+      "target": "products.aisle_id",
+      "type": "distribution_similar",
+      "confidence": 0.579,
+      "detail": "范围重叠 74.4%, 均值距离 1.76σ",
+      "metrics": {
+        "range_overlap": 0.7444,
+        "mean_distance_sigma": 1.7613
+      }
+    },
+    {
+      "source": "order_products__train.add_to_cart_order",
+      "target": "orders.order_hour_of_day",
+      "type": "distribution_similar",
+      "confidence": 0.577,
+      "detail": "范围重叠 40.7%, 均值距离 0.76σ",
+      "metrics": {
+        "range_overlap": 0.4074,
+        "mean_distance_sigma": 0.763
+      }
+    },
+    {
+      "source": "order_products__prior.add_to_cart_order",
+      "target": "orders.order_number",
+      "type": "distribution_similar",
+      "confidence": 0.548,
+      "detail": "范围重叠 33.3%, 均值距离 0.71σ",
+      "metrics": {
+        "range_overlap": 0.3333,
+        "mean_distance_sigma": 0.7099
+      }
+    },
+    {
+      "source": "orders.order_number",
+      "target": "products.department_id",
+      "type": "distribution_similar",
+      "confidence": 0.543,
+      "detail": "范围重叠 20.2%, 均值距离 0.35σ",
+      "metrics": {
+        "range_overlap": 0.202,
+        "mean_distance_sigma": 0.3462
+      }
+    },
+    {
+      "source": "departments.department_id",
+      "target": "orders.order_number",
+      "type": "distribution_similar",
+      "confidence": 0.536,
+      "detail": "范围重叠 20.2%, 均值距离 0.39σ",
+      "metrics": {
+        "range_overlap": 0.202,
+        "mean_distance_sigma": 0.3919
+      }
+    },
+    {
+      "source": "order_products__prior.order_id",
+      "target": "orders.user_id",
+      "type": "semantic_column_name",
+      "confidence": 0.52,
+      "detail": "列名语义相似 'order_id' ↔ 'user_id' (余弦相似度 0.52)"
+    },
+    {
+      "source": "order_products__train.order_id",
+      "target": "orders.user_id",
+      "type": "semantic_column_name",
+      "confidence": 0.52,
+      "detail": "列名语义相似 'order_id' ↔ 'user_id' (余弦相似度 0.52)"
+    },
+    {
+      "source": "order_products__prior",
+      "target": "order_products__train",
+      "type": "column_name_overlap",
+      "confidence": 0.5,
+      "detail": "共同列: ['order_id']",
+      "common_columns": [
+        "order_id"
+      ]
+    },
+    {
+      "source": "aisles",
+      "target": "products",
+      "type": "column_name_overlap",
+      "confidence": 0.333,
+      "detail": "共同列: ['aisle_id']",
+      "common_columns": [
+        "aisle_id"
+      ]
+    },
+    {
+      "source": "departments",
+      "target": "products",
+      "type": "column_name_overlap",
+      "confidence": 0.333,
+      "detail": "共同列: ['department_id']",
+      "common_columns": [
+        "department_id"
+      ]
+    }
+  ],
+  "summary": {
+    "association_types": {
+      "same_column_name": 10,
+      "foreign_key_candidate": 5,
+      "content_overlap": 8,
+      "distribution_similar": 28,
+      "semantic_column_name": 6,
+      "column_name_overlap": 3
+    },
+    "top_confidence": 1.0
+  }
+}

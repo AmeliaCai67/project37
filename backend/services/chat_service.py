@@ -1,13 +1,17 @@
 from typing import List, Dict, Optional
+from pathlib import Path
 import json
 
 from sqlalchemy.orm import Session
 
 from models.conversation import Conversation, MessageRole
 from models.user import User
+from models.workspace import Workspace
 from services.conversation_service import ConversationService
 from services.file_service import FileService
+from services.workspace_service import WorkspaceService
 from services.agent_service import AgentService
+from services.output_artifact_service import OutputArtifactService
 from core.llm_client import llm_client
 from core.logging import get_logger
 
@@ -105,6 +109,27 @@ class ChatService:
             history.append(a)
 
         return history
+
+    @staticmethod
+    def _resolve_workspace_and_dirs(db: Session, user: User, workspace_id: Optional[int] = None):
+        """解析工作空间并返回 working_dir / output_dir"""
+        if workspace_id:
+            ws = db.query(Workspace).filter_by(id=workspace_id, owner_id=user.id).first()
+            if not ws:
+                raise ValueError("Workspace not found")
+        else:
+            ws = WorkspaceService.get_or_create_internal(db, user)
+
+        if ws.type == "external":
+            # Copy isolation: agent works on internal copy
+            copy_dir = WorkspaceService.get_internal_copy_dir(user.id, ws.id)
+            WorkspaceService.sync_external_to_copy(ws, copy_dir)
+            working_dir = str(copy_dir)
+        else:
+            working_dir = str(FileService._get_user_dir(user.id))
+
+        output_dir = OutputArtifactService.ensure_output_date_dir(ws)
+        return ws, working_dir, str(output_dir)
     
     @staticmethod
     async def chat(
@@ -113,6 +138,7 @@ class ChatService:
         message: str,
         conversation_id: Optional[int] = None,
         file_ids: Optional[List[int]] = None,
+        workspace_id: Optional[int] = None,
     ) -> Dict:
         """
         处理聊天请求 - ReAct Agent 模式（非流式）
@@ -150,9 +176,13 @@ class ChatService:
         # 构建对话历史（多轮对话记忆）
         history = ChatService._build_conversation_history(db, conversation_id)
 
+        # 解析工作空间目录
+        workspace, working_dir, output_dir = ChatService._resolve_workspace_and_dirs(db, user, workspace_id)
+
         # 初始化 Agent
-        working_dir = FileService._get_user_dir(user.id)
-        agent = AgentService(working_dir=working_dir)
+        agent = AgentService(working_dir=working_dir, output_dir=output_dir)
+
+        saved_path = output_dir
 
         # 运行 Agent
         try:
@@ -169,10 +199,19 @@ class ChatService:
                 "tokens_used": 0,
             }
 
+        # 如果 Agent 返回执行错误，给出友好兜底回复
+        if not result.get("success", True):
+            result["answer"] = "抱歉，AI 处理过程出现错误。请稍后重试。"
+
         # 保存 AI 回复
         assistant_msg = ConversationService.add_message(
             db, conversation.id, MessageRole.ASSISTANT,
             result["answer"], result.get("tokens_used", 0)
+        )
+
+        # 记录输出交付物
+        artifacts = OutputArtifactService.scan_and_record(
+            db, workspace, Path(output_dir), conversation_id=conversation.id
         )
 
         return {
@@ -182,6 +221,11 @@ class ChatService:
             "tokens_used": result.get("tokens_used", 0),
             "files_referenced": file_ids or [],
             "steps": result.get("steps", []),
+            "saved_path": str(saved_path) if saved_path else None,
+            "artifacts": [
+                {"filename": a.filename, "relative_path": a.relative_path, "type": a.artifact_type}
+                for a in artifacts
+            ],
         }
     
     @staticmethod
@@ -191,6 +235,7 @@ class ChatService:
         message: str,
         conversation_id: Optional[int] = None,
         file_ids: Optional[List[int]] = None,
+        workspace_id: Optional[int] = None,
     ):
         """
         流式聊天 - ReAct Agent 模式
@@ -221,9 +266,13 @@ class ChatService:
         # 构建对话历史（多轮对话记忆）
         history = ChatService._build_conversation_history(db, conversation_id)
 
+        # 解析工作空间目录
+        workspace, working_dir, output_dir = ChatService._resolve_workspace_and_dirs(db, user, workspace_id)
+
         # 初始化 Agent
-        working_dir = FileService._get_user_dir(user.id)
-        agent = AgentService(working_dir=working_dir)
+        agent = AgentService(working_dir=working_dir, output_dir=output_dir)
+
+        saved_path = output_dir
 
         # 发送 conversation_id 给前端（新对话时前端需要知道 ID）
         yield f'data: {{"type": "conversation_id", "conversation_id": {conversation.id}}}\n\n'
@@ -231,13 +280,17 @@ class ChatService:
         # 流式运行并收集最终答案
         full_answer = ""
         try:
+            buffered_events = []
             async for event in agent.run_stream(user, message,
                                                  file_names=file_names,
                                                  file_contents=file_contents,
                                                  history=history):
+                if event.strip() == "data: [DONE]":
+                    continue
+                buffered_events.append(event)
                 yield event
                 # 从 SSE 事件中提取最终答案
-                if event.startswith("data: ") and "[DONE]" not in event:
+                if event.startswith("data: "):
                     try:
                         data = json.loads(event[6:])
                         if data.get("type") == "answer":
@@ -251,6 +304,15 @@ class ChatService:
                     db, conversation.id, MessageRole.ASSISTANT,
                     full_answer, tokens_used=0
                 )
+
+            # 记录输出交付物
+            OutputArtifactService.scan_and_record(
+                db, workspace, Path(output_dir), conversation_id=conversation.id
+            )
+
+            # 通知前端结果已保存，最后发送 [DONE]
+            yield f'data: {{"type": "metadata", "saved_path": "{saved_path}"}}\n\n'
+            yield "data: [DONE]\n\n"
                 
         except Exception as e:
             logger.error(f"Agent stream failed: {e}")

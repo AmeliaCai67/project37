@@ -56,10 +56,9 @@ CLAUDE.md
 *api_key*
 *apikey*
 
-# Tests
-backend/tests/
-frontend/tests/
-
+# Test runtime artifacts only (test source files are tracked)
+backend/.pytest_cache/
+frontend/coverage/
 # Test data / assets
 backend/testassets/*
 !backend/testassets/.gitkeep
@@ -77,3 +76,20 @@ UI-design/
 
 # Build outputs
 build/
+
+# Large datasets
+csv-data/
+/test_asset/home_credit_default_risk/application_train.csv
+/test_asset/home_credit_default_risk/bureau_balance.csv
+/test_asset/home_credit_default_risk/bureau.csv
+/test_asset/home_credit_default_risk/credit_card_balance.csv
+/test_asset/home_credit_default_risk/installments_payments.csv
+/test_asset/home_credit_default_risk/POS_CASH_balance.csv
+/test_asset/home_credit_default_risk/previous_application.csv
+/test_asset/instacart_market_basket/order_products__prior.csv
+/test_asset/instacart_market_basket/orders.csv
+
+# Project work files
+experiments/
+TASK.md
+CONSTRAINTS.md

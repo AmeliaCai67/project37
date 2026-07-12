@@ -24,6 +24,7 @@ class FileResponse(BaseModel):
     status: str
     uploaded_at: datetime
     processed_at: Optional[datetime]
+    workspace_id: Optional[int] = None
     
     class Config:
         from_attributes = True

@@ -1,6 +1,8 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { chatApi } from '@/api/chat'
+import { workspacesApi } from '@/api/workspaces'
+import { roadmapApi } from '@/api/roadmap'
 
 /**
  * Agent 步骤类型
@@ -21,10 +23,19 @@ export const useChatStore = defineStore('chat', () => {
   const isStreaming = ref(false)
   const selectedFiles = ref([])  // 只读用户选择的文件
 
+  // Workspace state
+  const workspaces = ref([])
+  const currentWorkspaceId = ref(null)
+  const roadmap = ref(null)
+
   // Getters
   const currentConversation = computed(() => {
     return conversations.value.find(c => c.id === currentConversationId.value)
   })
+
+  const currentWorkspace = computed(() =>
+    workspaces.value.find(w => w.id === currentWorkspaceId.value)
+  )
 
   const hasSelectedFiles = computed(() => selectedFiles.value.length > 0)
 
@@ -46,7 +57,8 @@ export const useChatStore = defineStore('chat', () => {
       const res = await chatApi.send({
         message: content,
         conversation_id: currentConversationId.value,
-        file_ids: options.fileIds || selectedFiles.value
+        file_ids: options.fileIds || selectedFiles.value,
+        workspace_id: currentWorkspaceId.value
       })
 
       if (res.code === 200) {
@@ -107,7 +119,8 @@ export const useChatStore = defineStore('chat', () => {
       const response = await chatApi.sendStream({
         message: content,
         conversation_id: currentConversationId.value,
-        file_ids: options.fileIds || selectedFiles.value
+        file_ids: options.fileIds || selectedFiles.value,
+        workspace_id: currentWorkspaceId.value
       })
 
       const reader = response.body.getReader()
@@ -162,6 +175,11 @@ export const useChatStore = defineStore('chat', () => {
               // 累积最终答案
               if (event.type === 'answer') {
                 aiMessage.content = event.content
+              }
+
+              // 记录结果保存路径
+              if (event.type === 'metadata' && event.saved_path) {
+                aiMessage.savedPath = event.saved_path
               }
 
               if (event.type === 'error') {
@@ -231,6 +249,38 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
+   * 获取工作空间列表
+   */
+  async function fetchWorkspaces() {
+    try {
+      const res = await workspacesApi.list()
+      workspaces.value = res.data || []
+      if (!currentWorkspaceId.value && workspaces.value.length > 0) {
+        currentWorkspaceId.value = workspaces.value[0].id
+      }
+    } catch (error) {
+      console.error('获取工作空间列表失败:', error)
+    }
+  }
+
+  /**
+   * 获取路线图
+   */
+  async function fetchRoadmap() {
+    if (!currentWorkspaceId.value) return
+    const res = await roadmapApi.get(currentWorkspaceId.value)
+    roadmap.value = res.data
+  }
+
+  /**
+   * 设置当前工作空间
+   */
+  async function setCurrentWorkspace(id) {
+    currentWorkspaceId.value = id
+    await fetchRoadmap()
+  }
+
+  /**
    * 加载历史对话
    */
   async function loadConversation(id) {
@@ -263,7 +313,11 @@ export const useChatStore = defineStore('chat', () => {
     agentSteps,
     isStreaming,
     selectedFiles,
+    workspaces,
+    currentWorkspaceId,
+    roadmap,
     currentConversation,
+    currentWorkspace,
     hasSelectedFiles,
     sendMessage,
     sendMessageStream,
@@ -271,6 +325,9 @@ export const useChatStore = defineStore('chat', () => {
     clearFileSelection,
     createNewConversation,
     loadConversation,
-    fetchConversations
+    fetchConversations,
+    fetchWorkspaces,
+    fetchRoadmap,
+    setCurrentWorkspace
   }
 })

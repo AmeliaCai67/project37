@@ -22,6 +22,8 @@ class File(Base):
     error_message = Column(Text)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     processed_at = Column(DateTime)
-    
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True)
+
     # Relationships
     owner = relationship("User", back_populates="files")
+    workspace = relationship("Workspace", back_populates="files")

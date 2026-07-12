@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime
 
 from core.llm_client import llm_client
-from core.tools import GlobTool, ReadTool, GrepTool, StatTool, ExecTool
+from core.tools import GlobTool, ReadTool, GrepTool, StatTool, ExecTool, SchemaTool
 from core.sandbox import RestrictedPythonSandbox
 from core.logging import get_logger
 
@@ -22,8 +22,9 @@ class AgentService:
     MAX_ITERATIONS = 8
     CONTEXT_LIMIT = 15000
     
-    def __init__(self, working_dir: Path = None):
-        self.working_dir = working_dir or Path(".")
+    def __init__(self, working_dir: Path = None, output_dir: Path = None):
+        self.working_dir = Path(working_dir) if working_dir else Path(".")
+        self.output_dir = Path(output_dir) if output_dir else None
         self.llm_client = llm_client
         
         # 初始化工具
@@ -32,7 +33,8 @@ class AgentService:
             "read": ReadTool(working_dir=self.working_dir),
             "grep": GrepTool(working_dir=self.working_dir),
             "stat": StatTool(working_dir=self.working_dir),
-            "exec": ExecTool(working_dir=self.working_dir),
+            "exec": ExecTool(working_dir=self.working_dir, output_dir=self.output_dir),
+            "get_database_schema_and_relations": SchemaTool(working_dir=self.working_dir),
         }
     
     def _build_system_prompt(self, role: str, file_names: List[str] = None, file_contents: Dict[str, str] = None) -> str:
@@ -105,6 +107,14 @@ class AgentService:
 - exec: 执行 Python 代码进行数据分析
   参数: {"command": "python代码", "type": "python"}
 
+- get_database_schema_and_relations: 获取当前工作区的数据图谱（表结构、列信息和表间关联关系）
+  参数: {}（无参数，直接调用即可）
+  适用场景：
+  - 当你需要分析多个表格之间的关联时（例如联表查询、合并分析）
+  - 当你不确定哪些列可以作为关联键时
+  - 当你需要了解全局数据结构时
+  返回值包含：summary（统计摘要）、meta（表/列数量）、edges（高置信度关联边列表，如外键候选、同名列、复合键等）
+
 **exec 沙箱中可用的 Python 库：**
 - pandas (含 read_csv/read_excel)、numpy、matplotlib、scipy、scikit-learn
 - openpyxl (Excel 读写)、csv、json、re、datetime、math、statistics
@@ -112,6 +122,11 @@ class AgentService:
 - 如有需要，可用 pip 安装其他纯 Python 包
   
 你可以访问用户的所有文件。请根据需要使用 glob 发现文件，然后使用其他工具进行分析。
+
+**多表关联分析建议**：
+当用户的问题涉及多个表格（如"对比 A 表和 B 表的销售数据"、"找出同时出现在两个文件中的客户"）时，
+强烈建议先调用 get_database_schema_and_relations 工具获取全局数据地图，
+了解表间关联关系后再使用 exec 生成准确的 pd.merge 代码。
 """
         
         prompt += preload_hint
@@ -141,6 +156,8 @@ Answer: 根据数据分析，...
 - 回答要具体，引用数据支撑你的结论
 - **停止条件**：如果你已经获得足够信息来回答用户的问题，必须立即停止调用工具，直接给出 Answer。不要过度分析或追求额外数据。
 - **输出规范**：禁止在回答中使用任何 emoji 表情符号（如 ✅❌📊📈等），请使用纯文本格式。
+- **文件保护**：你只能读取工作目录中的文件，禁止修改、删除或覆盖任何源文件。
+- **输出目录**：所有输出文件（图表、报告、CSV 结果）必须保存到 /sandbox_output/ 目录下。如果用户没有要求保存，你也应该把有价值的交付物自动保存到 /sandbox_output/。
 """
         return prompt
     

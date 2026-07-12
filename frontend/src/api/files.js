@@ -11,9 +11,12 @@ export const filesApi = {
   /**
    * 上传文件
    */
-  upload(file, onProgress) {
+  upload(file, workspaceId, onProgress) {
     const formData = new FormData()
     formData.append('file', file)
+    if (workspaceId) {
+      formData.append('workspace_id', workspaceId)
+    }
 
     return request.post('/files/upload', formData, {
       headers: {

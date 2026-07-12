@@ -31,6 +31,7 @@ async def send_message(
             message=request.message,
             conversation_id=request.conversation_id,
             file_ids=request.file_ids,
+            workspace_id=request.workspace_id,
         )
         
         return BaseResponse(data=result)
@@ -62,6 +63,7 @@ async def send_message_stream(
                 message=request.message,
                 conversation_id=request.conversation_id,
                 file_ids=request.file_ids,
+                workspace_id=request.workspace_id,
             ),
             media_type="text/event-stream",
         )

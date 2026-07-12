@@ -11,6 +11,9 @@
         </svg>
         <h2>科学索引 · 文件档案</h2>
         <span v-if="files.length > 0" class="file-count">{{ files.length }}</span>
+        <select v-if="chatStore.workspaces.length > 1" v-model="currentWorkspaceId" class="workspace-select">
+          <option v-for="w in chatStore.workspaces" :key="w.id" :value="w.id">{{ w.name }}</option>
+        </select>
       </div>
       <button
         v-if="userStore.canUpload"
@@ -189,16 +192,23 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { useChatStore } from '@/stores/chat'
 import { filesApi } from '@/api/files'
 
 const userStore = useUserStore()
+const chatStore = useChatStore()
 
 const files = ref([])
 const fileInput = ref(null)
 const uploading = ref(false)
 const uploadProgress = ref(0)
+
+const currentWorkspaceId = computed({
+  get: () => chatStore.currentWorkspaceId,
+  set: (val) => chatStore.setCurrentWorkspace(val)
+})
 
 function triggerUpload() {
   fileInput.value?.click()
@@ -213,7 +223,7 @@ async function handleFileChange(event) {
 
   for (const file of selectedFiles) {
     try {
-      await filesApi.upload(file, (progress) => {
+      await filesApi.upload(file, currentWorkspaceId.value, (progress) => {
         uploadProgress.value = progress
       })
     } catch (error) {
@@ -229,12 +239,18 @@ async function handleFileChange(event) {
 
 async function loadFiles() {
   try {
-    const res = await filesApi.getList()
+    const params = {}
+    if (currentWorkspaceId.value) params.workspace_id = currentWorkspaceId.value
+    const res = await filesApi.getList(params)
     files.value = res.data || []
   } catch (error) {
     console.error('加载文件失败:', error)
   }
 }
+
+watch(currentWorkspaceId, () => {
+  loadFiles()
+})
 
 async function deleteFile(file) {
   if (!confirm(`确定要将 ${file.original_name || file.name} 移出档案柜吗？`)) {
@@ -288,7 +304,7 @@ function getStatusText(status) {
 }
 
 onMounted(() => {
-  loadFiles()
+  chatStore.fetchWorkspaces().then(() => loadFiles())
 })
 </script>
 
@@ -336,6 +352,16 @@ onMounted(() => {
   border-radius: 0;
   min-width: 24px;
   text-align: center;
+}
+
+.workspace-select {
+  margin-left: 12px;
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 0.5px solid var(--ink-20);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink-brown);
 }
 
 .upload-btn {
