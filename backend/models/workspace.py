@@ -18,5 +18,8 @@ class Workspace(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     owner = relationship("User", back_populates="workspaces")
-    files = relationship("File", back_populates="workspace", cascade="all, delete-orphan")
+    # File 使用 save-update, merge：卸载 workspace 时不删除用户上传的文件，
+    # unmount() 中会先将 File.workspace_id 置为 NULL 再删除 workspace
+    files = relationship("File", back_populates="workspace", cascade="save-update, merge")
+    # OutputArtifact 是输出交付物，workspace 删除时可以级联清理
     artifacts = relationship("OutputArtifact", back_populates="workspace", cascade="all, delete-orphan")

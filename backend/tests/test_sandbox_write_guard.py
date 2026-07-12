@@ -43,7 +43,7 @@ def test_can_write_to_output_dir(tmp_path):
     )
 
     code = """
-with open('/output/result.txt', 'w') as f:
+with open('/sandbox_output/result.txt', 'w') as f:
     f.write('hello')
 """
     result = sandbox.execute(code)

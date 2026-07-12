@@ -243,10 +243,11 @@ def _safe_open(path, mode='r', *args, **kwargs):
 
         out = _Path(_OUTPUT_DIR).resolve()
 
-        # 将虚拟的 /output 前缀映射到实际输出目录（仅匹配 /output 或 /output/）
+        # 将虚拟的 /sandbox_output 前缀映射到实际输出目录
+        # 使用 /sandbox_output 而非 /output，避免与用户本地 /output 目录冲突
         path_str = str(p)
-        if p.is_absolute() and (path_str == '/output' or path_str.startswith('/output/')):
-            relative = path_str[len('/output'):]
+        if p.is_absolute() and (path_str == '/sandbox_output' or path_str.startswith('/sandbox_output/')):
+            relative = path_str[len('/sandbox_output'):]
             if relative.startswith('/'):
                 relative = relative[1:]
             p = out / relative

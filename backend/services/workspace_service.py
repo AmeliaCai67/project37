@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from sqlalchemy.orm import Session
 from models.workspace import Workspace
+from models.file import File
 from models.user import User
 from services.file_service import FileService
 
@@ -63,6 +64,10 @@ class WorkspaceService:
         ws = db.query(Workspace).filter_by(id=workspace_id, owner_id=user.id).first()
         if not ws:
             raise ValueError("Workspace not found")
+        # 解除关联的文件（保留用户上传数据，不级联删除）
+        db.query(File).filter_by(workspace_id=ws.id).update(
+            {File.workspace_id: None}
+        )
         db.delete(ws)
         db.commit()
 
@@ -102,7 +107,18 @@ class WorkspaceService:
         copy_dir.mkdir(parents=True, exist_ok=True)
 
         allowed_ext = {".csv", ".xlsx", ".xls", ".json", ".txt", ".md", ".pdf", ".docx"}
+        MAX_FILES = 1000  # 防止超大目录导致性能问题
+        copied = 0
+
         for f in src.iterdir():
-            if f.is_file() and f.suffix.lower() in allowed_ext:
-                dest = copy_dir / f.name
-                shutil.copy2(f, dest)
+            if not f.is_file() or f.suffix.lower() not in allowed_ext:
+                continue
+            dest = copy_dir / f.name
+            # 增量同步：仅当目标不存在或源文件更新时才复制
+            if dest.exists():
+                if f.stat().st_mtime <= dest.stat().st_mtime:
+                    continue
+            shutil.copy2(f, dest)
+            copied += 1
+            if copied >= MAX_FILES:
+                break
