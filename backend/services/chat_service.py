@@ -199,6 +199,10 @@ class ChatService:
                 "tokens_used": 0,
             }
 
+        # 如果 Agent 返回执行错误，给出友好兜底回复
+        if not result.get("success", True):
+            result["answer"] = "抱歉，AI 处理过程出现错误。请稍后重试。"
+
         # 保存 AI 回复
         assistant_msg = ConversationService.add_message(
             db, conversation.id, MessageRole.ASSISTANT,
