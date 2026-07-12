@@ -279,6 +279,41 @@ class _RestrictedInput:
 
 builtins.input = _RestrictedInput()
 
+# --- /sandbox_output 虚拟目录补丁 ---
+# pandas/matplotlib 使用 pathlib.Path.is_dir() / exists() 检查路径，而非 os.path 函数。
+# ba patch pathlib.Path 的方法，使 /sandbox_output 透明映射到实际 _OUTPUT_DIR。
+if _OUTPUT_DIR:
+    _os.makedirs(_OUTPUT_DIR, exist_ok=True)
+    _OrigPath = _Path
+
+    def _sandbox_path_is_dir(self):
+        _raw = str(self)
+        if _raw == '/sandbox_output':
+            return True
+        if _raw.startswith('/sandbox_output/'):
+            _rel = _raw[len('/sandbox_output/'):]
+            _real = _OrigPath(_OUTPUT_DIR) / _rel
+            return _real.is_dir()
+        return _OrigPath.is_dir(self)
+
+    def _sandbox_path_exists(self):
+        _raw = str(self)
+        if _raw == '/sandbox_output' or _raw.startswith('/sandbox_output/'):
+            _rel = _raw[len('/sandbox_output'):].lstrip('/')
+            _real = _OrigPath(_OUTPUT_DIR) / _rel if _rel else _OrigPath(_OUTPUT_DIR)
+            return _real.exists()
+        return _OrigPath.exists(self)
+
+    def _sandbox_path_mkdir(self, mode=0o777, parents=False, exist_ok=False):
+        _raw = str(self)
+        if _raw == '/sandbox_output' or _raw.startswith('/sandbox_output/'):
+            return  # 虚拟目录，跳过
+        return _OrigPath.mkdir(self, mode, parents, exist_ok)
+
+    _Path.is_dir = _sandbox_path_is_dir
+    _Path.exists = _sandbox_path_exists
+    _Path.mkdir = _sandbox_path_mkdir
+
 # 执行用户代码
 {user_code}
 '''

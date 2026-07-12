@@ -360,15 +360,35 @@ async function loadWorkspaceAndRoadmap() {
 
 async function handleMount() {
   if (!mountPath.value.trim()) return
+  const path = mountPath.value.trim()
+
+  // 去重检查：已挂载过的路径不允许重复挂载
+  const existing = chatStore.workspaces.find(
+    w => w.type === 'external' && w.source_path === path
+  )
+  if (existing) {
+    alert(`该文件夹已挂载（工作区"${existing.name}"），无需重复挂载。`)
+    mountPath.value = ''
+    mountName.value = ''
+    showMountDialog.value = false
+    // 自动切换到已存在的 workspace
+    chatStore.setCurrentWorkspace(existing.id)
+    return
+  }
+
   try {
-    await workspacesApi.mount({
-      local_path: mountPath.value.trim(),
+    const res = await workspacesApi.mount({
+      local_path: path,
       name: mountName.value.trim() || '本地文件夹'
     })
     mountPath.value = ''
     mountName.value = ''
     showMountDialog.value = false
     await loadWorkspaceAndRoadmap()
+    // 自动切换到新挂载的 workspace
+    if (res.data?.id) {
+      chatStore.setCurrentWorkspace(res.data.id)
+    }
     if (chatStore.roadmap?.questions?.length) {
       showRoadmapModal.value = true
     }

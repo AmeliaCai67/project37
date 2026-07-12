@@ -34,7 +34,7 @@ def test_exec_tool_accepts_output_dir(tmp_path):
 
     tool = ExecTool(working_dir=tmp_path, output_dir=output)
     result = tool.execute(
-        command="with open('/sandbox_output/result.txt', 'w') as f: f.write('hello')",
+        command=f"with open('{output}/result.txt', 'w') as f: f.write('hello')",
         type="python",
     )
 

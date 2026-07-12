@@ -6,7 +6,9 @@
     </div>
 
     <select v-model="selectedId" class="workspace-select">
-      <option v-for="w in workspaces" :key="w.id" :value="w.id">{{ w.name }}</option>
+      <option v-for="w in workspaces" :key="w.id" :value="w.id">
+        {{ w.name }}{{ w.type === 'external' && w.source_path ? ' (' + w.source_path + ')' : '' }}
+      </option>
     </select>
 
     <button class="btn btn-secondary mount-btn" @click="emit('mount')">

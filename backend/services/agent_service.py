@@ -132,33 +132,35 @@ class AgentService:
         prompt += preload_hint
 
         prompt += """
-输出格式示例：
-
-**第一步（发现/读取文件）：**
-Thought: 我需要先查看有哪些文件
-Action: glob
-Action Input: {"pattern": "*.csv"}
-
-**后续步骤（分析）：**
-Thought: 让我读取文件的前几行了解结构
-Action: read
-Action Input: {"path": "文件名.csv", "offset": 0, "limit": 10}
-
-**最终步骤：**
-Thought: 现在我已经有足够的信息来回答
-Answer: 根据数据分析，...
-
-重要规则:
-- **格式强制**：每条回复必须以 Thought: 开头，然后包含 Action: + Action Input: 或 Answer:。不得输出无前缀的自由文本。
-- 在没有使用工具查看文件前，绝对禁止直接给出 Answer
-- 如果文件很大，先使用 stat 了解结构，再使用 read 分页读取
-- 对于复杂分析，使用 exec 工具编写 Python 代码
-- 回答要具体，引用数据支撑你的结论
-- **停止条件**：如果你已经获得足够信息来回答用户的问题，必须立即停止调用工具，直接给出 Answer。不要过度分析或追求额外数据。
-- **输出规范**：禁止在回答中使用任何 emoji 表情符号（如 ✅❌📊📈等），请使用纯文本格式。
-- **文件保护**：你只能读取工作目录中的文件，禁止修改、删除或覆盖任何源文件。
-- **输出目录**：所有输出文件（图表、报告、CSV 结果）必须保存到 /sandbox_output/ 目录下。如果用户没有要求保存，你也应该把有价值的交付物自动保存到 /sandbox_output/。
-"""
+ 输出格式示例：
+ 
+ **第一步（发现/读取文件）：**
+ Thought: 我需要先查看有哪些文件
+ Action: glob
+ Action Input: {"pattern": "*.csv"}
+ 
+ **后续步骤（分析）：**
+ Thought: 让我读取文件的前几行了解结构
+ Action: read
+ Action Input: {"path": "文件名.csv", "offset": 0, "limit": 10}
+ 
+ **最终步骤：**
+ Thought: 现在我已经有足够的信息来回答
+ Answer: 根据数据分析，...
+ 
+ 重要规则:
+ - **格式强制**：每条回复必须以 Thought: 开头，然后包含 Action: + Action Input: 或 Answer:。不得输出无前缀的自由文本。
+ - 在没有使用工具查看文件前，绝对禁止直接给出 Answer
+ - 如果文件很大，先使用 stat 了解结构，再使用 read 分页读取
+ - 对于复杂分析，使用 exec 工具编写 Python 代码
+ - 回答要具体，引用数据支撑你的结论
+ - **停止条件**：如果你已经获得足够信息来回答用户的问题，必须立即停止调用工具，直接给出 Answer。不要过度分析或追求额外数据。
+ - **输出规范**：禁止在回答中使用任何 emoji 表情符号（如 ✅❌📊📈等），请使用纯文本格式。
+ - **代码规范**：exec 中编写的 Python 代码必须使用英文标点（, . : ;），严禁使用中文标点（，。：；），否则会导致语法错误。
+ - **数据文件读取**：分析数据文件时，必须使用 read 工具读取（参数 path 为文件名即可），或使用 exec 中的 pandas.read_csv('文件名')。绝对禁止在 exec 代码中硬编码绝对路径（如 /Users/... 或 /sandbox_output/...）。数据文件位于当前工作目录，直接用文件名即可访问。
+ - **文件保护**：你只能读取工作目录中的文件，禁止修改、删除或覆盖任何源文件。
+ - **输出目录**：所有输出文件（图表、报告、CSV 结果）必须保存到 /sandbox_output/ 目录下。如果用户没有要求保存，你也应该把有价值的交付物自动保存到 /sandbox_output/。
+ """
         return prompt
     
     def _parse_llm_response(self, content: str) -> Dict[str, Any]:

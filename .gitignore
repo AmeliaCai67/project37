@@ -44,9 +44,11 @@ yarn-error.log*
 uploads/*
 !uploads/.gitkeep
 
-# Documentation (agent work logs, CLAUDE.md)
+# Documentation & agent work logs (process files, not for public repo)
 AGENTS.md
 CLAUDE.md
+docs/
+.superpowers/
 
 # Environment variables & Secrets
 .env
@@ -70,6 +72,9 @@ htmlcov/
 
 # Obsidian
 .obsidian/
+
+# CodeWhale agent runtime
+.codewhale/
 
 # UI design assets
 UI-design/

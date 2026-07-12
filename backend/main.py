@@ -70,5 +70,5 @@ if __name__ == "__main__":
         "main:app",
         host=settings.HOST,
         port=settings.PORT,
-        reload=settings.ENV == "dev",
+        reload=False,  # reload 在后台运行不稳定，开发时请手动重启
     )

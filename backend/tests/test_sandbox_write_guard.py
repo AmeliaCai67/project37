@@ -42,13 +42,14 @@ def test_can_write_to_output_dir(tmp_path):
         output_dir=str(output_dir)
     )
 
-    code = """
-with open('/sandbox_output/result.txt', 'w') as f:
+    output_file = output_dir / "result.txt"
+    code = f"""
+with open('{output_file}', 'w') as f:
     f.write('hello')
 """
     result = sandbox.execute(code)
     assert result["success"] is True
-    assert (output_dir / "result.txt").read_text() == "hello"
+    assert output_file.read_text() == "hello"
 
 
 def test_cannot_read_sibling_directory(tmp_path):

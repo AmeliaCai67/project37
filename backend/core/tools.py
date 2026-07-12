@@ -18,12 +18,23 @@ class GlobTool:
         self.working_dir = working_dir
     
     def execute(self, pattern: str) -> Dict[str, Any]:
-        """执行 glob 搜索"""
+        """执行 glob 搜索，支持递归通配 **"""
         try:
             matching_files = []
-            for file_path in self.working_dir.iterdir():
-                if file_path.is_file() and fnmatch.fnmatch(file_path.name, pattern):
-                    matching_files.append(file_path.name)
+            # 递归模式：使用 Path.rglob
+            if '**' in pattern:
+                clean = pattern.replace('**/', '').replace('**', '')
+                for file_path in self.working_dir.rglob(clean or '*'):
+                    if file_path.is_file():
+                        try:
+                            rel = file_path.relative_to(self.working_dir)
+                            matching_files.append(str(rel))
+                        except ValueError:
+                            matching_files.append(file_path.name)
+            else:
+                for file_path in self.working_dir.iterdir():
+                    if file_path.is_file() and fnmatch.fnmatch(file_path.name, pattern):
+                        matching_files.append(file_path.name)
             return {
                 "success": True,
                 "files": matching_files
