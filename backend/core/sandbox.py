@@ -163,6 +163,7 @@ class RestrictedPythonSandbox:
 import sys
 import builtins
 import os as _os
+import io as _io
 from pathlib import Path as _Path
 
 # 保存原始 open
@@ -266,8 +267,9 @@ def _safe_open(path, mode='r', *args, **kwargs):
 
     return _original_open(resolved_str, mode, *args, **kwargs)
 
-# 替换 open 函数
+# 替换 open 函数（pathlib / pandas 等通过 io.open 访问文件）
 builtins.open = _safe_open
+_io.open = _safe_open
 
 # 重定向标准输入
 class _RestrictedInput:

@@ -47,6 +47,11 @@ class RoadmapService:
             {"tables": [...], "relationships": [...], "questions": [...]}
         """
         scan_path = RoadmapService._resolve_scan_path(workspace)
+
+        # 对外部 workspace，确保内部隔离副本已同步，避免画像时看不到数据
+        if workspace.type == "external":
+            WorkspaceService.sync_external_to_copy(workspace, scan_path)
+
         cache_path = RoadmapService._cache_path(workspace)
 
         profiler = SchemaProfiler()

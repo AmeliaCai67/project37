@@ -89,3 +89,71 @@ with open('/output_file.txt', 'w') as f:
     result = sandbox.execute(code)
     assert result["success"] is False
     assert "Cannot write outside output directory" in result.get("stderr", "")
+
+
+def test_pathlib_write_text_blocked(tmp_path):
+    """pathlib.Path.write_text 不应绕过沙箱写限制"""
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    (source_dir / "data.csv").write_text("original\n")
+
+    sandbox = RestrictedPythonSandbox(
+        working_dir=str(source_dir),
+        output_dir=str(output_dir)
+    )
+
+    code = """
+from pathlib import Path
+Path('data.csv').write_text('hacked')
+"""
+    result = sandbox.execute(code)
+    assert result["success"] is False
+    assert (source_dir / "data.csv").read_text() == "original\n"
+
+
+def test_pathlib_open_write_blocked(tmp_path):
+    """pathlib.Path.open('w') 不应绕过沙箱写限制"""
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    (source_dir / "data.csv").write_text("original\n")
+
+    sandbox = RestrictedPythonSandbox(
+        working_dir=str(source_dir),
+        output_dir=str(output_dir)
+    )
+
+    code = """
+from pathlib import Path
+with Path('data.csv').open('w') as f:
+    f.write('hacked')
+"""
+    result = sandbox.execute(code)
+    assert result["success"] is False
+    assert (source_dir / "data.csv").read_text() == "original\n"
+
+
+def test_pandas_to_csv_blocked(tmp_path):
+    """pandas.DataFrame.to_csv 不应绕过沙箱写限制"""
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    (source_dir / "data.csv").write_text("original\n")
+
+    sandbox = RestrictedPythonSandbox(
+        working_dir=str(source_dir),
+        output_dir=str(output_dir)
+    )
+
+    code = """
+import pandas as pd
+df = pd.DataFrame({'a': [1]})
+df.to_csv('data.csv', index=False)
+"""
+    result = sandbox.execute(code)
+    assert result["success"] is False
+    assert "original" in (source_dir / "data.csv").read_text()

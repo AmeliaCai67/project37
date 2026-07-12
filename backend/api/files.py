@@ -79,12 +79,15 @@ async def upload_file(
 async def list_files(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    workspace_id: Optional[int] = Query(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """获取文件列表"""
     skip = (page - 1) * page_size
-    files, total = FileService.get_user_files(db, current_user.id, skip, page_size)
+    files, total = FileService.get_user_files(
+        db, current_user.id, skip, page_size, workspace_id=workspace_id
+    )
     
     total_pages = (total + page_size - 1) // page_size
     

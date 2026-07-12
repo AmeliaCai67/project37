@@ -58,25 +58,27 @@ async def test_build_roadmap_generates_questions(db_session, upload_root):
 
 @pytest.mark.asyncio
 async def test_build_roadmap_external_scans_internal_copy(db_session, upload_root):
-    """external workspace 应扫描内部隔离副本，而非 source_path。"""
+    """external workspace 应先同步到内部隔离副本，再基于副本做画像，而非直接扫描 source_path。"""
     user = User(username="r_ext", hashed_password="x", role="admin")
     db_session.add(user)
     db_session.commit()
 
     src = upload_root / "external_src"
     src.mkdir()
-    (src / "ignored.csv").write_text("a,b\n1,2\n")
+    (src / "data.csv").write_text("学生姓名,成绩\n张三,90\n")
+    # 非允许后缀的文件不应被复制到副本，也不应出现在画像里
+    (src / "ignored.txt").write_text("secret")
 
     ws = WorkspaceService.mount(db_session, user, str(src), "外部空间")
 
     copy_dir = WorkspaceService.get_internal_copy_dir(user.id, ws.id)
-    (copy_dir / "副本数据.csv").write_text("学生姓名,成绩\n张三,90\n")
-
     roadmap = await RoadmapService.build_roadmap(ws, llm_client=FakeLLM())
 
     table_names = {n["id"] for n in roadmap["tables"] if n["type"] == "table"}
-    assert "副本数据" in table_names
+    assert "data" in table_names
     assert "ignored" not in table_names
+    # 数据已同步到内部副本
+    assert (copy_dir / "data.csv").exists()
 
     # 缓存写入内部隔离副本的 .cache 目录，不在源目录
     expected_cache = copy_dir / ".cache" / "schema_graph.json"

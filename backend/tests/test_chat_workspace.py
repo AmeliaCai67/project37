@@ -195,6 +195,42 @@ def test_upload_file_without_workspace_uses_internal(client: TestClient, auth_he
     assert file_data["workspace_id"] == internal_ws_id
 
 
+def test_list_files_filters_by_workspace(client: TestClient, auth_headers):
+    """/api/files/list 应根据 workspace_id 过滤文件"""
+    from services.file_service import FileService
+
+    r = client.get("/api/workspaces/list", headers=auth_headers)
+    internal_ws_id = r.json()["data"][0]["id"]
+
+    file_content = b"x,y\n1,2\n"
+    with patch.object(FileService, "extract_content_in_background", return_value=None):
+        with patch.object(RoadmapService, "build_roadmap_in_background", return_value=None):
+            r = client.post(
+                "/api/files/upload",
+                headers=auth_headers,
+                files={"file": ("internal.csv", file_content, "text/csv")}
+            )
+    assert r.status_code == 200
+
+    # 不带 workspace_id 应返回所有文件
+    r = client.get("/api/files/list", headers=auth_headers)
+    assert r.status_code == 200
+    all_files = r.json()["data"]
+    assert len(all_files) >= 1
+
+    # 带 internal workspace_id 应返回刚才上传的文件
+    r = client.get("/api/files/list", headers=auth_headers, params={"workspace_id": internal_ws_id})
+    assert r.status_code == 200
+    filtered = r.json()["data"]
+    assert len(filtered) >= 1
+    assert all(f["workspace_id"] == internal_ws_id for f in filtered)
+
+    # 带一个不存在的 workspace_id 应返回空列表
+    r = client.get("/api/files/list", headers=auth_headers, params={"workspace_id": 99999})
+    assert r.status_code == 200
+    assert r.json()["data"] == []
+
+
 def test_chat_stream_with_workspace(client: TestClient, auth_headers, tmp_path):
     """流式聊天接口同样应接受 workspace_id 并正常返回 SSE"""
     src = tmp_path / "data"
