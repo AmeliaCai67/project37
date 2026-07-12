@@ -52,7 +52,7 @@ async def test_build_roadmap_generates_questions(db_session, upload_root):
     assert len(roadmap["questions"]) > 0
 
     # 缓存应写入内部 .cache 目录，不在扫描源目录
-    expected_cache = user_dir / ".cache" / f"{ws.id}_schema_graph.json"
+    expected_cache = user_dir / ".cache" / "schema_graph.json"
     assert expected_cache.exists()
 
 
@@ -78,8 +78,8 @@ async def test_build_roadmap_external_scans_internal_copy(db_session, upload_roo
     assert "副本数据" in table_names
     assert "ignored" not in table_names
 
-    # 缓存仍写入 user_dir/.cache
-    expected_cache = FileService._get_user_dir(user.id) / ".cache" / f"{ws.id}_schema_graph.json"
+    # 缓存写入内部隔离副本的 .cache 目录，不在源目录
+    expected_cache = copy_dir / ".cache" / "schema_graph.json"
     assert expected_cache.exists()
 
 

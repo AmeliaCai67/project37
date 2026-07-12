@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime
 
 from core.llm_client import llm_client
-from core.tools import GlobTool, ReadTool, GrepTool, StatTool, ExecTool
+from core.tools import GlobTool, ReadTool, GrepTool, StatTool, ExecTool, SchemaTool
 from core.sandbox import RestrictedPythonSandbox
 from core.logging import get_logger
 
@@ -34,6 +34,7 @@ class AgentService:
             "grep": GrepTool(working_dir=self.working_dir),
             "stat": StatTool(working_dir=self.working_dir),
             "exec": ExecTool(working_dir=self.working_dir, output_dir=self.output_dir),
+            "get_database_schema_and_relations": SchemaTool(working_dir=self.working_dir),
         }
     
     def _build_system_prompt(self, role: str, file_names: List[str] = None, file_contents: Dict[str, str] = None) -> str:
@@ -106,6 +107,14 @@ class AgentService:
 - exec: 执行 Python 代码进行数据分析
   参数: {"command": "python代码", "type": "python"}
 
+- get_database_schema_and_relations: 获取当前工作区的数据图谱（表结构、列信息和表间关联关系）
+  参数: {}（无参数，直接调用即可）
+  适用场景：
+  - 当你需要分析多个表格之间的关联时（例如联表查询、合并分析）
+  - 当你不确定哪些列可以作为关联键时
+  - 当你需要了解全局数据结构时
+  返回值包含：summary（统计摘要）、meta（表/列数量）、edges（高置信度关联边列表，如外键候选、同名列、复合键等）
+
 **exec 沙箱中可用的 Python 库：**
 - pandas (含 read_csv/read_excel)、numpy、matplotlib、scipy、scikit-learn
 - openpyxl (Excel 读写)、csv、json、re、datetime、math、statistics
@@ -113,6 +122,11 @@ class AgentService:
 - 如有需要，可用 pip 安装其他纯 Python 包
   
 你可以访问用户的所有文件。请根据需要使用 glob 发现文件，然后使用其他工具进行分析。
+
+**多表关联分析建议**：
+当用户的问题涉及多个表格（如"对比 A 表和 B 表的销售数据"、"找出同时出现在两个文件中的客户"）时，
+强烈建议先调用 get_database_schema_and_relations 工具获取全局数据地图，
+了解表间关联关系后再使用 exec 生成准确的 pd.merge 代码。
 """
         
         prompt += preload_hint

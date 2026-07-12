@@ -1,5 +1,8 @@
 <template>
   <div class="home-container">
+    <!-- 全局拖拽上传区 -->
+    <GlobalDropZone />
+
     <!-- 顶部导航 -->
     <header class="top-header">
       <div class="header-inner">
@@ -26,6 +29,7 @@
 <script setup>
 import { useRouter, RouterLink, RouterView } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import GlobalDropZone from '@/components/GlobalDropZone.vue'
 
 const router = useRouter()
 const userStore = useUserStore()

@@ -8,6 +8,7 @@ from core.llm_client import llm_client as default_llm_client
 from core.logging import get_logger
 from services.file_service import FileService
 from services.workspace_service import WorkspaceService
+from tools.schema_profiler import CACHE_FILENAME
 
 logger = get_logger(__name__)
 
@@ -27,8 +28,8 @@ class RoadmapService:
     @staticmethod
     def _cache_path(workspace: Workspace) -> Path:
         """计算 schema 图谱缓存路径（内部缓存，不污染源目录）。"""
-        user_dir = FileService._get_user_dir(workspace.owner_id)
-        return user_dir / ".cache" / f"{workspace.id}_schema_graph.json"
+        scan_path = RoadmapService._resolve_scan_path(workspace)
+        return scan_path / ".cache" / CACHE_FILENAME
 
     @staticmethod
     async def build_roadmap(

@@ -145,7 +145,7 @@ def read_excel_robust(filepath: Path, max_rows: int = DEFAULT_MAX_ROWS) -> Optio
 def load_tables(dir_path: Path) -> Dict[str, pd.DataFrame]:
     """加载目录下所有 CSV / Excel 文件，自动根据文件大小决定采样行数。
 
-    跳过名为 ``37-output`` 的子目录/文件，避免把生成的分析产物当作源数据画像。
+    跳过 ``37-output`` 产物目录与 ``.cache`` 缓存目录，避免把内部文件当作源数据画像。
     """
     tables: Dict[str, pd.DataFrame] = {}
     if not dir_path.exists():
@@ -998,18 +998,20 @@ class SchemaProfiler:
         graph = build_graph(tables, col_index, edges)
         return graph
 
-    def build_and_cache(self, dir_path: Path, cache_path: Path) -> Dict[str, Any]:
+    def build_and_cache(self, dir_path: Path, cache_path: Optional[Path] = None) -> Dict[str, Any]:
         """
-        构建图谱并缓存到指定 JSON 文件。
+        构建图谱并缓存到本地 JSON 文件。
 
         Args:
             dir_path: 数据文件目录
-            cache_path: 缓存文件路径（内部缓存目录，不写入源目录）
+            cache_path: 缓存文件路径，默认 dir_path/.cache/schema_graph.json
 
         Returns:
             Graph JSON dict
         """
         graph = self.build(dir_path)
+        if cache_path is None:
+            cache_path = dir_path / ".cache" / CACHE_FILENAME
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(
             json.dumps(graph, indent=2, ensure_ascii=False, default=str),
@@ -1018,8 +1020,9 @@ class SchemaProfiler:
         return graph
 
     @staticmethod
-    def load_cache(cache_path: Path) -> Optional[Dict[str, Any]]:
-        """加载指定路径缓存的图谱（若存在）。"""
+    def load_cache(dir_path: Path) -> Optional[Dict[str, Any]]:
+        """加载缓存的图谱（若存在）。"""
+        cache_path = dir_path / ".cache" / CACHE_FILENAME
         if cache_path.exists():
             try:
                 return json.loads(cache_path.read_text(encoding="utf-8"))
@@ -1032,31 +1035,29 @@ class SchemaProfiler:
 #  9. 便捷的异步触发入口（供 BackgroundTasks 调用）
 # ═══════════════════════════════════════════════════════════════
 
-def run_schema_profiler_in_background(user_dir: Path, workspace_id: int) -> None:
+def run_schema_profiler_in_background(user_dir: Path) -> None:
     """
     后台静默运行 Schema Profiler。
     供 FastAPI BackgroundTasks 调用，不阻塞主流程。
-    缓存写入 user_dir/.cache/{workspace_id}_schema_graph.json，避免污染源目录。
+    缓存写入 user_dir/.cache/schema_graph.json，避免污染源目录。
     """
     try:
-        cache_path = user_dir / ".cache" / f"{workspace_id}_schema_graph.json"
         profiler = SchemaProfiler()
-        profiler.build_and_cache(user_dir, cache_path)
+        profiler.build_and_cache(user_dir)
     except Exception:
         # 静默失败，不影响主流程
         pass
 
 
-def get_schema_summary_for_agent(user_dir: Path, workspace_id: int) -> Optional[Dict[str, Any]]:
+def get_schema_summary_for_agent(dir_path: Path) -> Optional[Dict[str, Any]]:
     """
     为 Agent 工具提供提炼后的图谱摘要。
-    读取内部缓存，仅返回 summary 和 edges 的精简版。
+    读取缓存，仅返回 summary 和 edges 的精简版。
 
     Returns:
         {"summary": ..., "edges": [...]} 或 None
     """
-    cache_path = user_dir / ".cache" / f"{workspace_id}_schema_graph.json"
-    cache = SchemaProfiler.load_cache(cache_path)
+    cache = SchemaProfiler.load_cache(dir_path)
     if not cache:
         return None
 
