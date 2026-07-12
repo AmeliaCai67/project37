@@ -23,8 +23,8 @@ class AgentService:
     CONTEXT_LIMIT = 15000
     
     def __init__(self, working_dir: Path = None, output_dir: Path = None):
-        self.working_dir = working_dir or Path(".")
-        self.output_dir = output_dir
+        self.working_dir = Path(working_dir) if working_dir else Path(".")
+        self.output_dir = Path(output_dir) if output_dir else None
         self.llm_client = llm_client
         
         # 初始化工具
