@@ -57,13 +57,31 @@ def client(auth_headers):
 
 
 def _mock_llm_answer(answer: str):
-    """返回一个会立即给出 Answer 的 LLM mock"""
+    """返回一个会立即给出 Answer 的 LLM mock（适用于工作目录为空、幻觉 guard 不触发场景）"""
     return AsyncMock(return_value={
         "choices": [{
             "message": {"content": f"Thought: 直接回答\nAnswer: {answer}"}
         }],
         "usage": {"total_tokens": 10}
     })
+
+
+def _mock_llm_answer_after_stat(answer: str):
+    """先执行 stat 工具再给出 Answer，避免在有文件的工作空间触发幻觉 guard"""
+    return AsyncMock(side_effect=[
+        {
+            "choices": [{
+                "message": {"content": "Thought: 先查看文件\nAction: stat\nAction Input: {\"path\": \"a.csv\"}"}
+            }],
+            "usage": {"total_tokens": 10}
+        },
+        {
+            "choices": [{
+                "message": {"content": f"Thought: 基于文件回答\nAnswer: {answer}"}
+            }],
+            "usage": {"total_tokens": 10}
+        },
+    ])
 
 
 def test_chat_with_external_workspace_uses_workspace_dirs(client: TestClient, auth_headers, tmp_path):
@@ -89,7 +107,7 @@ def test_chat_with_external_workspace_uses_workspace_dirs(client: TestClient, au
         return original_init(self, *args, **kwargs)
 
     with patch.object(AgentService, "__init__", patched_init):
-        with patch("services.agent_service.llm_client.chat_completion", _mock_llm_answer("hello from workspace")):
+        with patch("services.agent_service.llm_client.chat_completion", _mock_llm_answer_after_stat("hello from workspace")):
             r = client.post("/api/chat/send", headers=auth_headers, json={
                 "message": "hi",
                 "workspace_id": ws_id
@@ -190,7 +208,7 @@ def test_chat_stream_with_workspace(client: TestClient, auth_headers, tmp_path):
     assert r.status_code == 200
     ws_id = r.json()["data"]["id"]
 
-    with patch("services.agent_service.llm_client.chat_completion", _mock_llm_answer("stream answer")):
+    with patch("services.agent_service.llm_client.chat_completion", _mock_llm_answer_after_stat("stream answer")):
         with client.stream(
             "POST",
             "/api/chat/send/stream",

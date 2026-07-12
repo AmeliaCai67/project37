@@ -80,23 +80,55 @@ def mock_db_session():
     return Mock()
 
 
-# ============ 从 test_end_to_end 移过来的 Fixtures ============
+# ============ 端到端测试 Fixtures ============
 
 @pytest.fixture
-def client():
-    """创建测试客户端"""
+def client(db_session):
+    """创建测试客户端，所有请求使用内存数据库"""
     from fastapi.testclient import TestClient
     from main import app
-    return TestClient(app)
+    from models.base import get_db
+
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def auth_headers_user():
-    """普通用户的认证头"""
-    return {"Authorization": "Bearer user_token"}
+def auth_headers_user(db_session):
+    """普通用户的认证头（使用真实 JWT token）"""
+    from core.security import create_access_token
+    from models.user import User, Role
+
+    user = User(
+        username="test_user",
+        hashed_password="x",
+        role=Role.USER,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    token = create_access_token(data={"sub": user.username, "role": user.role.value})
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
-def auth_headers_admin():
-    """管理员的认证头"""
-    return {"Authorization": "Bearer admin_token"}
+def auth_headers_admin(db_session):
+    """管理员的认证头（使用真实 JWT token）"""
+    from core.security import create_access_token
+    from models.user import User, Role
+
+    user = User(
+        username="test_admin",
+        hashed_password="x",
+        role=Role.ADMIN,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    token = create_access_token(data={"sub": user.username, "role": user.role.value})
+    return {"Authorization": f"Bearer {token}"}
