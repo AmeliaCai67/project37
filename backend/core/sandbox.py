@@ -188,7 +188,6 @@ _ALLOWED_SYSTEM_PATHS = [
     '/usr/lib',      # Unix 系统库
     '/Library',      # macOS CLI Tools + Frameworks（含 Python.framework）
     '/opt',          # 可选软件包
-    '/etc',          # 系统配置文件（mimetypes 等）
     {site_pkg_literal},  # Python site-packages（第三方包资源文件）
 ] + _PYTHON_LIB_PATHS
 
@@ -352,7 +351,7 @@ builtins.input = _RestrictedInput()
                     module_name = match.group(1) if match else "未知模块"
                     return {**base_response,
                         "error_type": "module_not_found",
-                        "error": f"ModuleNotFoundError: 未找到模块 '{module_name}'，请先安装（如 pip install {module_name}）\n{error.strip()}"}
+                        "error": f"ImportError: ModuleNotFoundError: 未找到模块 '{module_name}'，请先安装（如 pip install {module_name}）\n{error.strip()}"}
                 elif "ImportError" in error:
                     match = re.search(r"No module named '([^']+)'", error)
                     module_name = match.group(1) if match else "未知模块"
