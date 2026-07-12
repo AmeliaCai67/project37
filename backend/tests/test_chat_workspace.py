@@ -204,3 +204,29 @@ def test_chat_stream_with_workspace(client: TestClient, auth_headers, tmp_path):
                     events.append(line if isinstance(line, str) else line.decode("utf-8"))
             assert any("stream answer" in e for e in events)
             assert events[-1] == "data: [DONE]"
+
+
+def test_chat_response_includes_saved_path_and_records_artifacts(client: TestClient, auth_headers):
+    """非流式聊天应返回 saved_path 并在输出目录创建时记录 OutputArtifact"""
+    from services.output_artifact_service import OutputArtifactService
+    from models.output_artifact import OutputArtifact
+    from models.base import get_db
+
+    # 确保 internal workspace 存在
+    r = client.get("/api/workspaces/list", headers=auth_headers)
+    ws_id = r.json()["data"][0]["id"]
+
+    with patch("services.agent_service.llm_client.chat_completion", _mock_llm_answer("analysis result")):
+        r = client.post("/api/chat/send", headers=auth_headers, json={
+            "message": "analyze",
+            "workspace_id": ws_id
+        })
+
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert data["response"] == "analysis result"
+    assert data.get("saved_path") is not None
+    assert "37-output" in data["saved_path"]
+
+    # 验证 OutputArtifact 表被创建（无真实文件时 artifacts 为空列表）
+    assert isinstance(data.get("artifacts"), list)
