@@ -381,13 +381,13 @@ onMounted(() => {
   loadFiles()
   loadConversations()
   loadWorkspaceAndRoadmap()
-  const conversationId = route.params.id
+  const conversationId = route.params?.id
   if (conversationId) {
     chatStore.loadConversation(Number(conversationId))
   }
 })
 
-watch(() => route.params.id, (newId) => {
+watch(() => route.params?.id, (newId) => {
   if (newId) {
     chatStore.loadConversation(Number(newId))
   }
