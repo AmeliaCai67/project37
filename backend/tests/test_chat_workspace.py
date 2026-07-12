@@ -99,7 +99,7 @@ def test_chat_with_external_workspace_uses_workspace_dirs(client: TestClient, au
     assert r.json()["data"]["response"] == "hello from workspace"
     assert captured["working_dir"] is not None
     assert str(captured["working_dir"]).endswith(f"mounts/{ws_id}")
-    assert str(captured["output_dir"]) == ws_output_path
+    assert str(captured["output_dir"]).startswith(ws_output_path)
 
 
 def test_chat_without_workspace_uses_internal_workspace_dirs(client: TestClient, auth_headers):
@@ -122,7 +122,7 @@ def test_chat_without_workspace_uses_internal_workspace_dirs(client: TestClient,
     assert r.json()["data"]["response"] == "hello from internal"
     expected_user_dir = settings.UPLOAD_DIR / "user_1"
     assert Path(captured["working_dir"]) == expected_user_dir
-    assert str(captured["output_dir"]) == str(expected_user_dir / "37-output")
+    assert str(captured["output_dir"]).startswith(str(expected_user_dir / "37-output"))
 
 
 def test_chat_with_invalid_workspace_returns_400(client: TestClient, auth_headers):

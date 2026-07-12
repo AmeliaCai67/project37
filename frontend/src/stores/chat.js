@@ -177,6 +177,11 @@ export const useChatStore = defineStore('chat', () => {
                 aiMessage.content = event.content
               }
 
+              // 记录结果保存路径
+              if (event.type === 'metadata' && event.saved_path) {
+                aiMessage.savedPath = event.saved_path
+              }
+
               if (event.type === 'error') {
                 aiMessage.content = `错误: ${event.content}`
               }

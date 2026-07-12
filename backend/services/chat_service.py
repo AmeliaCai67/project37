@@ -1,4 +1,5 @@
 from typing import List, Dict, Optional
+from pathlib import Path
 import json
 
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from services.conversation_service import ConversationService
 from services.file_service import FileService
 from services.workspace_service import WorkspaceService
 from services.agent_service import AgentService
+from services.output_artifact_service import OutputArtifactService
 from core.llm_client import llm_client
 from core.logging import get_logger
 
@@ -126,8 +128,8 @@ class ChatService:
         else:
             working_dir = str(FileService._get_user_dir(user.id))
 
-        output_dir = ws.output_path
-        return ws, working_dir, output_dir
+        output_dir = OutputArtifactService.ensure_output_date_dir(ws)
+        return ws, working_dir, str(output_dir)
     
     @staticmethod
     async def chat(
@@ -175,10 +177,12 @@ class ChatService:
         history = ChatService._build_conversation_history(db, conversation_id)
 
         # 解析工作空间目录
-        _, working_dir, output_dir = ChatService._resolve_workspace_and_dirs(db, user, workspace_id)
+        workspace, working_dir, output_dir = ChatService._resolve_workspace_and_dirs(db, user, workspace_id)
 
         # 初始化 Agent
         agent = AgentService(working_dir=working_dir, output_dir=output_dir)
+
+        saved_path = output_dir
 
         # 运行 Agent
         try:
@@ -201,6 +205,11 @@ class ChatService:
             result["answer"], result.get("tokens_used", 0)
         )
 
+        # 记录输出交付物
+        artifacts = OutputArtifactService.scan_and_record(
+            db, workspace, Path(output_dir), conversation_id=conversation.id
+        )
+
         return {
             "response": result["answer"],
             "conversation_id": conversation.id,
@@ -208,6 +217,11 @@ class ChatService:
             "tokens_used": result.get("tokens_used", 0),
             "files_referenced": file_ids or [],
             "steps": result.get("steps", []),
+            "saved_path": str(saved_path) if saved_path else None,
+            "artifacts": [
+                {"filename": a.filename, "relative_path": a.relative_path, "type": a.artifact_type}
+                for a in artifacts
+            ],
         }
     
     @staticmethod
@@ -249,10 +263,12 @@ class ChatService:
         history = ChatService._build_conversation_history(db, conversation_id)
 
         # 解析工作空间目录
-        _, working_dir, output_dir = ChatService._resolve_workspace_and_dirs(db, user, workspace_id)
+        workspace, working_dir, output_dir = ChatService._resolve_workspace_and_dirs(db, user, workspace_id)
 
         # 初始化 Agent
         agent = AgentService(working_dir=working_dir, output_dir=output_dir)
+
+        saved_path = output_dir
 
         # 发送 conversation_id 给前端（新对话时前端需要知道 ID）
         yield f'data: {{"type": "conversation_id", "conversation_id": {conversation.id}}}\n\n'
@@ -260,13 +276,17 @@ class ChatService:
         # 流式运行并收集最终答案
         full_answer = ""
         try:
+            buffered_events = []
             async for event in agent.run_stream(user, message,
                                                  file_names=file_names,
                                                  file_contents=file_contents,
                                                  history=history):
+                if event.strip() == "data: [DONE]":
+                    continue
+                buffered_events.append(event)
                 yield event
                 # 从 SSE 事件中提取最终答案
-                if event.startswith("data: ") and "[DONE]" not in event:
+                if event.startswith("data: "):
                     try:
                         data = json.loads(event[6:])
                         if data.get("type") == "answer":
@@ -280,6 +300,15 @@ class ChatService:
                     db, conversation.id, MessageRole.ASSISTANT,
                     full_answer, tokens_used=0
                 )
+
+            # 记录输出交付物
+            OutputArtifactService.scan_and_record(
+                db, workspace, Path(output_dir), conversation_id=conversation.id
+            )
+
+            # 通知前端结果已保存，最后发送 [DONE]
+            yield f'data: {{"type": "metadata", "saved_path": "{saved_path}"}}\n\n'
+            yield "data: [DONE]\n\n"
                 
         except Exception as e:
             logger.error(f"Agent stream failed: {e}")
