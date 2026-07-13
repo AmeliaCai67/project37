@@ -3,12 +3,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from config import settings
 from models.base import Base, engine
 from models import File  # 导入模型以确保表被创建
 from api import api_router
 from core.logging import setup_logging, get_logger
+from core import paths
 
 # 配置日志
 setup_logging()
@@ -20,13 +22,13 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时
     logger.info(f"Starting {settings.APP_NAME} in {settings.ENV} mode")
-    
+
     # 创建数据库表
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables initialized")
-    
+
     yield
-    
+
     # 关闭时
     logger.info(f"Shutting down {settings.APP_NAME}")
 
@@ -41,10 +43,15 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENV != "prod" else None,
 )
 
-# CORS 配置 - 仅允许已知前端域名
+# CORS 配置
+if settings.ENV == "prod" or paths.is_frozen():
+    allow_origins = []
+else:
+    allow_origins = ["http://localhost:3000", "http://localhost:5173"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,6 +69,13 @@ async def health_check():
         "app": settings.APP_NAME,
         "env": settings.ENV,
     }
+
+
+# 生产模式下挂载前端静态资源
+if (settings.ENV == "prod" or paths.is_frozen()) and paths.get_frontend_dist_dir():
+    dist_dir = paths.get_frontend_dist_dir()
+    logger.info(f"Serving frontend static files from {dist_dir}")
+    app.mount("/", StaticFiles(directory=dist_dir, html=True), name="static")
 
 
 if __name__ == "__main__":
