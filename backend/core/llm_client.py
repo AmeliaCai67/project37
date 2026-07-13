@@ -117,6 +117,17 @@ class LLMClient:
                         except (json.JSONDecodeError, KeyError):
                             continue
     
+    def reload(self):
+        """从当前 settings 与环境变量重新加载配置。"""
+        import os
+
+        self.provider = os.environ.get("LLM_PROVIDER", settings.LLM_PROVIDER)
+        self.api_key = os.environ.get("LLM_API_KEY", settings.LLM_API_KEY)
+        self.base_url = os.environ.get("LLM_BASE_URL") or self._get_base_url()
+        self.model = os.environ.get("LLM_MODEL", settings.LLM_MODEL)
+        self.max_tokens = int(os.environ.get("LLM_MAX_TOKENS", settings.LLM_MAX_TOKENS))
+        self.temperature = float(os.environ.get("LLM_TEMPERATURE", settings.LLM_TEMPERATURE))
+
     def build_messages(
         self,
         user_message: str,
