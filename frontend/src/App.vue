@@ -5,12 +5,30 @@
 <script setup>
 import { RouterView } from 'vue-router'
 import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { configApi } from '@/api/config'
 
+const router = useRouter()
 const userStore = useUserStore()
 
-onMounted(() => {
-  userStore.fetchUserInfo()
+onMounted(async () => {
+  // 未登录时自动获取默认用户 Token
+  if (!userStore.token) {
+    await userStore.autoLogin()
+  } else {
+    await userStore.fetchUserInfo()
+  }
+
+  // 检查是否已配置 API Key
+  try {
+    const status = await configApi.getStatus()
+    if (!status.has_api_key) {
+      router.replace('/setup')
+    }
+  } catch (e) {
+    console.error('Config status check failed:', e)
+  }
 })
 </script>
 

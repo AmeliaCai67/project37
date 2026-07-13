@@ -3,6 +3,12 @@ import { useUserStore } from '@/stores/user'
 
 const routes = [
   {
+    path: '/setup',
+    name: 'Setup',
+    component: () => import('@/views/SetupView.vue'),
+    meta: { public: true }
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/LoginView.vue'),

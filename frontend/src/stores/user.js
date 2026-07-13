@@ -17,6 +17,25 @@ export const useUserStore = defineStore('user', () => {
   const canDelete = computed(() => isAdmin.value)
 
   // Actions
+  async function autoLogin() {
+    loading.value = true
+    try {
+      const data = await authApi.autoLogin()
+      if (data?.access_token) {
+        token.value = data.access_token
+        localStorage.setItem('token', data.access_token)
+        await fetchUserInfo()
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Auto login error:', error)
+      return false
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function login(username) {
     loading.value = true
     try {
@@ -88,6 +107,7 @@ export const useUserStore = defineStore('user', () => {
     canDelete,
     login,
     logout,
+    autoLogin,
     fetchUserInfo
   }
 })

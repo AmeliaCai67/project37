@@ -20,6 +20,10 @@ export function getOrCreatePassword(username) {
 }
 
 export const authApi = {
+  autoLogin() {
+    return request.post('/auth/auto')
+  },
+
   login(data) {
     // 登录使用 form-data 格式（OAuth2PasswordRequestForm）
     const params = new URLSearchParams()
