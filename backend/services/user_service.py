@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime
 from typing import Optional
 
@@ -69,6 +70,23 @@ class UserService:
             return None
         return user
     
+    @staticmethod
+    def get_or_create_default_user(db: Session) -> User:
+        """获取或创建打包版的默认用户（用户名：我，admin 角色）。"""
+        username = "默认用户"
+        user = UserService.get_by_username(db, username)
+        if user:
+            return user
+        return UserService.create(
+            db,
+            UserCreate(
+                username=username,
+                password=secrets.token_urlsafe(32),
+                role=Role.ADMIN,
+                email=None,
+            ),
+        )
+
     @staticmethod
     def update_role(db: Session, user_id: int, new_role: Role) -> Optional[User]:
         """更新用户角色"""
