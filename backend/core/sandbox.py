@@ -147,6 +147,33 @@ class RestrictedPythonSandbox:
                 pass
         return paths
 
+    def _get_python_executable(self) -> str:
+        """获取用于执行沙箱代码的 Python 解释器。
+
+        PyInstaller onedir 模式下，sys.executable 是外层 bootloader，
+        需要定位 _MEIPASS 内的 Python 解释器才能用脚本参数启动。
+        """
+        if not getattr(sys, "frozen", False):
+            return sys.executable
+
+        meipass = Path(getattr(sys, "_MEIPASS"))
+        if sys.platform == "win32":
+            candidates = [
+                meipass / "python.exe",
+                meipass / "python3.exe",
+            ]
+        else:
+            candidates = [
+                meipass / "python",
+                meipass / "python3",
+                meipass / "Python",
+            ]
+        for c in candidates:
+            if c.exists():
+                return str(c)
+        # 兜底：使用当前可执行文件（可能不支持 -c，但适用于部分 PyInstaller onefile 场景）
+        return sys.executable
+
     def _create_sandbox_script(self, user_code: str) -> str:
         """创建带沙箱限制的 Python 脚本"""
         working_dir_str = str(self.working_dir.resolve())
@@ -344,8 +371,9 @@ if _OUTPUT_DIR:
             env = os.environ.copy()
             # 保留 PYTHONPATH 以确保虚拟环境中的包可用
 
+            python_exe = self._get_python_executable()
             result = subprocess.run(
-                [sys.executable, temp_script],
+                [python_exe, temp_script],
                 cwd=str(self.working_dir),
                 capture_output=True,
                 text=True,
