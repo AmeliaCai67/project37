@@ -29,6 +29,15 @@
     
 - **安全法典 (Sandbox)** — 她拥有极其严格的安全意识。所有代码执行都通过 AST 静态分析与子进程隔离双重保护。她的权限由你掌控，绝不越权触碰你的隐私。
 
+## 下载使用
+
+1. 访问 [Releases](../../releases) 下载对应系统版本。
+2. **Windows**：解压 `Project37-Windows.zip`，双击 `Project37.exe`。
+3. **macOS**：解压 `Project37-Mac.zip`，将 `Project37.app` 拖入 Applications，右键打开。
+4. 首次启动时填入 DeepSeek API Key，即可开始使用。
+
+> 若系统提示“无法验证开发者”或 SmartScreen，请选择“仍要运行”或“右键 → 打开”。
+
 ## 预览
 ### 首页
 
