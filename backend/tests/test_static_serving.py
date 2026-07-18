@@ -25,6 +25,11 @@ client = TestClient(app)
 result = {
     "env": client.get('/health').json()['env'],
     "index_status": client.get('/').status_code,
+    # SPA 回退：前端 history 路由（如 /setup）应返回 index.html
+    "spa_status": client.get('/setup').status_code,
+    "spa_is_html": b'id="app"' in client.get('/setup').content,
+    # 未知 API 路径仍应返回 404，不回退到前端
+    "api_404": client.get('/api/nonexistent').status_code,
 }
 print(json.dumps(result))
 """
@@ -39,3 +44,6 @@ print(json.dumps(result))
     data = json.loads(result.stdout.strip().splitlines()[-1])
     assert data["env"] == "prod"
     assert data["index_status"] == 200
+    assert data["spa_status"] == 200
+    assert data["spa_is_html"] is True
+    assert data["api_404"] == 404

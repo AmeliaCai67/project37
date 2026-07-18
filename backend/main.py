@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from config import settings
 from models.base import Base, engine
@@ -71,11 +72,23 @@ async def health_check():
     }
 
 
+class SPAStaticFiles(StaticFiles):
+    """SPA 静态资源：未知路径回退到 index.html（前端 history 路由需要）。"""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as e:
+            if e.status_code == 404 and not path.startswith("api"):
+                return await super().get_response("index.html", scope)
+            raise
+
+
 # 生产模式下挂载前端静态资源
 if (settings.ENV == "prod" or paths.is_frozen()) and paths.get_frontend_dist_dir():
     dist_dir = paths.get_frontend_dist_dir()
     logger.info(f"Serving frontend static files from {dist_dir}")
-    app.mount("/", StaticFiles(directory=dist_dir, html=True), name="static")
+    app.mount("/", SPAStaticFiles(directory=dist_dir, html=True), name="static")
 
 
 if __name__ == "__main__":
