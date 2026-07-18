@@ -20,7 +20,7 @@ def setup_logging():
     root_logger.setLevel(log_level)
 
     # 控制台处理器（开发环境或存在终端时）
-    if not paths.is_frozen():
+    if not paths.is_frozen() or settings.ENV != "prod":
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
         root_logger.addHandler(console_handler)

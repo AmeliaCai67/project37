@@ -36,11 +36,10 @@ async def update_config(
     }
     # 持久化到用户 .env
     config_store.update_user_config(values)
-    # 更新当前进程中的 settings 对象
+    # 更新当前进程中的 settings 对象（字段名为大写，直接用原键名）
     for key, value in values.items():
-        attr = key.lower()
-        if hasattr(settings, attr):
-            setattr(settings, attr, value)
+        if hasattr(settings, key):
+            setattr(settings, key, value)
     # 更新 LLM 客户端
     llm_client.reload()
     return {"success": True}
