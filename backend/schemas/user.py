@@ -19,7 +19,7 @@ class TokenData(BaseModel):
 
 # ============== User ==============
 class UserBase(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
+    username: str = Field(..., min_length=1, max_length=50)  # 个人桌面版允许短中文名（如「我」）
     email: Optional[EmailStr] = None
 
 

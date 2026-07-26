@@ -20,6 +20,7 @@ env/
 venv/
 ENV/
 .venv
+.venv-build/
 
 # Node.js
 node_modules/
@@ -98,3 +99,6 @@ csv-data/
 experiments/
 TASK.md
 CONSTRAINTS.md
+
+# 蒸馏生成的设计文档（本地参考，不入库）
+design.md

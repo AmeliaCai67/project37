@@ -27,6 +27,10 @@ import pandas as pd
 import numpy as np
 import chardet
 
+from core.logging import get_logger
+
+logger = get_logger(__name__)
+
 # ═══════════════════════════════════════════════════════════════
 #  0. 配置常量（文件体积阈值与采样策略）
 # ═══════════════════════════════════════════════════════════════
@@ -102,7 +106,10 @@ def _sniff_delimiter(filepath: Path, encoding: str) -> str:
 
 
 def read_csv_robust(filepath: Path, max_rows: int = DEFAULT_MAX_ROWS) -> Optional[pd.DataFrame]:
-    """鲁棒的 CSV 读取：自动编码、分隔符嗅探、行数限制。"""
+    """鲁棒的 CSV 读取：自动编码、分隔符嗅探、行数限制。
+
+    若按 CSV 读取失败，会尝试按 Excel 读取，以处理扩展名被误标的情况。
+    """
     encoding = _sniff_encoding(filepath)
     delimiter = _sniff_delimiter(filepath, encoding)
 
@@ -130,16 +137,42 @@ def read_csv_robust(filepath: Path, max_rows: int = DEFAULT_MAX_ROWS) -> Optiona
         except Exception:
             continue
 
-    return None
+    # 处理“伪 CSV”：扩展名是 .csv 但实际为 Excel 格式
+    logger.warning(f"CSV 读取失败，尝试按 Excel 读取: {filepath}")
+    return read_excel_robust(filepath, max_rows)
 
 
 def read_excel_robust(filepath: Path, max_rows: int = DEFAULT_MAX_ROWS) -> Optional[pd.DataFrame]:
-    """鲁棒的 Excel 读取，限制行数。"""
-    try:
-        df = pd.read_excel(filepath, dtype=str, keep_default_na=True, nrows=max_rows)
-        return _filter_blacklist_columns(df)
-    except Exception:
-        return None
+    """鲁棒的 Excel 读取：多 sheet、引擎 fallback、限制行数，并记录异常。"""
+    suffix = filepath.suffix.lower()
+    # .xls 老格式优先尝试 xlrd，再回退 openpyxl
+    engines = ["xlrd", "openpyxl"] if suffix == ".xls" else ["openpyxl", "xlrd"]
+
+    for engine in engines:
+        try:
+            # sheet_name=None 读取所有 sheet，返回 {sheet_name: DataFrame}
+            sheets = pd.read_excel(
+                filepath,
+                dtype=str,
+                keep_default_na=True,
+                nrows=max_rows,
+                sheet_name=None,
+                engine=engine,
+            )
+            if not sheets:
+                continue
+            # 选择第一张非空 sheet；若全部为空则返回第一张
+            for name, df in sheets.items():
+                if df is not None and not df.empty:
+                    logger.info(f"Excel 读取成功: {filepath}, sheet={name}, engine={engine}")
+                    return _filter_blacklist_columns(df)
+            first_df = next(iter(sheets.values()))
+            return _filter_blacklist_columns(first_df) if first_df is not None else None
+        except Exception as e:
+            logger.warning(f"Excel 读取失败: {filepath}, engine={engine}, error={e}")
+            continue
+
+    return None
 
 
 def load_tables(dir_path: Path) -> Dict[str, pd.DataFrame]:
@@ -907,6 +940,17 @@ def build_graph(
         }
         if "semantic_type" in s:
             node["semantic_type"] = s["semantic_type"]
+        # 数值/日期列携带范围，供画像摘要与推荐问题使用（复用已有统计，无额外开销）
+        if s["dtype"] in ("numeric", "datetime"):
+            if "min" in s:
+                node["min"] = s["min"]
+            if "max" in s:
+                node["max"] = s["max"]
+        # 低基数字符串列视为类别列，携带少量示例值
+        if s["dtype"] == "string" and s["cardinality"] <= 20:
+            samples = sorted(str(v) for v in s.get("sample_uniques", set()))[:5]
+            if samples:
+                node["sample_values"] = samples
         nodes.append(node)
 
     # 去重边（保留最高置信度）

@@ -7,7 +7,7 @@
         </button>
 
         <h3 class="modal-title">
-          37 已经看过「{{ workspace?.name || '你的工作区' }}」
+          37 已经看过「{{ workspaceName }}」
         </h3>
 
         <p class="modal-summary">
@@ -33,7 +33,7 @@
               class="question-btn"
               @click="ask(q)"
             >
-              {{ q }}
+              {{ questionText(q) }}
             </button>
           </div>
         </div>
@@ -49,6 +49,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { stripTimestampPrefix } from '@/utils/display'
 
 const props = defineProps({
   visible: Boolean,
@@ -59,12 +60,26 @@ const emit = defineEmits(['close', 'ask'])
 
 const dontShowAgain = ref(false)
 
-const tableCount = computed(() => props.roadmap?.tables?.length || 0)
+// 只统计表节点（不含列节点）：优先用后端 table_count，兜底 tables 长度
+const tableCount = computed(() =>
+  props.roadmap?.table_count ?? props.roadmap?.tables?.length ?? 0
+)
 const relationshipCount = computed(() => props.roadmap?.relationships?.length || 0)
+
+const workspaceName = computed(() =>
+  stripTimestampPrefix(props.workspace?.name) || '你的工作区'
+)
 
 function tableName(fullName) {
   if (!fullName) return ''
-  return String(fullName).split('/').pop().split('.')[0]
+  // 边端点是 '表.列' 形式，取表名并去时间戳前缀
+  const base = String(fullName).split('/').pop().split('.')[0]
+  return stripTimestampPrefix(base)
+}
+
+// 兼容字符串与 {question, tables, type} 对象两种形态
+function questionText(q) {
+  return typeof q === 'string' ? q : q?.question || ''
 }
 
 function close() {
@@ -76,7 +91,7 @@ function close() {
 }
 
 function ask(q) {
-  emit('ask', q)
+  emit('ask', questionText(q))
   close()
 }
 </script>
@@ -94,8 +109,9 @@ function ask(q) {
 
 .roadmap-modal-content {
   position: relative;
-  background: var(--paper);
-  border: 0.5px solid var(--ink-20);
+  /* 不透明背景，避免背后首页文字透出（曾引用未定义的 --paper） */
+  background: var(--parchment-light);
+  border: 0.5px solid #E0D0B0;
   border-radius: 8px;
   padding: 28px 32px;
   max-width: 520px;
@@ -109,7 +125,7 @@ function ask(q) {
   right: 14px;
   background: none;
   border: none;
-  color: var(--ink-50);
+  color: var(--text-tertiary);
   cursor: pointer;
   padding: 4px;
 }
@@ -123,7 +139,7 @@ function ask(q) {
 
 .modal-summary {
   font-size: 14px;
-  color: var(--ink-60);
+  color: var(--text-secondary);
   margin: 0 0 16px;
 }
 
@@ -146,7 +162,7 @@ function ask(q) {
 
 .section-label {
   font-size: 12px;
-  color: var(--ink-50);
+  color: var(--text-tertiary);
   margin-bottom: 10px;
 }
 
@@ -160,7 +176,7 @@ function ask(q) {
   text-align: left;
   padding: 10px 14px;
   background: var(--parchment);
-  border: 0.5px solid var(--ink-15);
+  border: 0.5px solid #E0D8C0;
   border-radius: 6px;
   color: var(--ink-brown);
   cursor: pointer;
@@ -169,7 +185,7 @@ function ask(q) {
 }
 
 .question-btn:hover {
-  background: var(--ink-5);
+  background: var(--parchment-dark);
 }
 
 .no-again {
@@ -177,7 +193,7 @@ function ask(q) {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--ink-50);
+  color: var(--text-tertiary);
   cursor: pointer;
 }
 </style>

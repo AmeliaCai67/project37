@@ -15,7 +15,7 @@ def test_external_mount_creates_copy(db_session, tmp_path):
     ws = WorkspaceService.mount(db_session, user, str(src), "s")
     copy_dir = WorkspaceService.get_internal_copy_dir(user.id, ws.id)
 
-    WorkspaceService.sync_external_to_copy(ws, copy_dir)
+    WorkspaceService.sync_external_to_copy(db_session, ws, copy_dir)
 
     assert (copy_dir / "data.csv").exists()
     assert (copy_dir / "data.csv").read_text() == "x\n1\n"

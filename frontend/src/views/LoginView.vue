@@ -53,7 +53,8 @@ async function handleLogin() {
   if (success) {
     router.push('/')
   } else {
-    error.value = '登录失败，请重试'
+    // 优先展示后端返回的具体原因（如「用户名或密码错误」、参数校验详情）
+    error.value = userStore.loginError || '登录失败，请重试'
   }
 }
 </script>

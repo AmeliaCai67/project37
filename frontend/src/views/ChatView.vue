@@ -6,21 +6,32 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         New Proof
       </button>
-      <div
-        v-for="conv in chatStore.conversations"
-        :key="conv.id"
-        class="index-card"
-        :class="{ active: conv.id === chatStore.currentConversationId }"
-        @click="loadConversation(conv.id)"
-      >
-        <svg class="conv-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-        <span class="conv-title">{{ conv.title || '新对话' }}</span>
+      <div v-for="group in conversationGroups" :key="group.key" class="conv-group">
+        <button class="conv-group-header" @click="toggleGroup(group.key)">
+          <span class="group-arrow" :class="{ open: !collapsedGroups.has(group.key) }">▾</span>
+          <span class="group-label">{{ group.label }}</span>
+          <span class="group-count">{{ group.items.length }}</span>
+        </button>
+        <template v-if="!collapsedGroups.has(group.key)">
+          <div
+            v-for="conv in group.items"
+            :key="conv.id"
+            class="index-card"
+            :class="{ active: conv.id === chatStore.currentConversationId }"
+            @click="loadConversation(conv.id)"
+          >
+            <svg class="conv-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            <span class="conv-title">{{ conv.title || '新对话' }}</span>
+          </div>
+        </template>
       </div>
     </aside>
 
+    <!-- ── 右侧便利贴栏：当前空间 / 切换 / 输出路径 ── -->
+    <WorkspaceNotes />
+
     <!-- ── 右侧聊天区 ── -->
     <div class="chat-main">
-      <WorkspaceBar @mount="showRoadmapModal = false; showMountDialog = true" />
       <!-- 文件选择栏（只读用户） -->
       <div v-if="userStore.isReadonly" class="file-selection-bar">
         <div class="selection-label">
@@ -75,9 +86,6 @@
 
       <!-- ── 消息区域 ── -->
       <div ref="messagesContainer" class="messages-area">
-        <!-- 欢迎面板 -->
-        <RecommendedQuestions />
-
       <!-- ═══ 欢迎面板 ═══ -->
         <div v-if="chatStore.messages.length === 0" class="welcome-panel">
           <!-- 沙漏双三角印章 -->
@@ -91,29 +99,24 @@
 
           <h2 class="welcome-title">我是你的数据分析助手 <em class="highlight">37</em></h2>
 
-          <div class="quick-cards">
-            <div class="academic-card" @click="sendQuick('帮我分析已上传文件的数据')">
-              <div class="card-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="#4F3C2B" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="23" x2="24" y2="23"/><line x1="4" y1="23" x2="4" y2="4"/><line x1="3" y1="18" x2="5" y2="18"/><line x1="3" y1="13" x2="5" y2="13"/><line x1="3" y1="8" x2="5" y2="8"/><circle cx="9" cy="17" r="0.8"/><circle cx="13" cy="14" r="0.8"/><circle cx="17" cy="11" r="0.8"/><circle cx="20" cy="8" r="0.8"/></svg>
+          <!-- 37 的发现：推荐问题横排卡片（对话开始后随欢迎页隐藏） -->
+          <template v-if="recommendedQuestions.length">
+            <div class="findings-label">基于你的数据，37 建议：</div>
+            <div class="quick-cards">
+              <div
+                v-for="(q, idx) in recommendedQuestions.slice(0, 3)"
+                :key="idx"
+                class="academic-card finding-card"
+                @click="fillInput(q.question)"
+              >
+                <h3 class="card-title">{{ q.type || '推荐问题' }}</h3>
+                <p class="card-desc">{{ q.question }}</p>
               </div>
-              <h3 class="card-title">数据探索</h3>
-              <p class="card-desc">上传 CSV / Excel，37 会自主发现规律与异常</p>
             </div>
-            <div class="academic-card" @click="sendQuick('帮我编写 Python 代码进行统计分析')">
-              <div class="card-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="#4F3C2B" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="25" y2="22"/><line x1="3" y1="22" x2="3" y2="5"/><path d="M5 16 Q9 5, 14 10 Q18 13, 22 7"/></svg>
-              </div>
-              <h3 class="card-title">智能分析</h3>
-              <p class="card-desc">AI 代理编写代码，实时展示推理与计算过程</p>
-            </div>
-            <div class="academic-card" @click="sendQuick('请根据数据生成一份分析报告')">
-              <div class="card-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="#4F3C2B" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="25" y2="22"/><line x1="3" y1="22" x2="3" y2="5"/><path d="M5 19 Q8 19, 10 14 Q12 9, 14 7 Q16 5, 17 9 Q18 13, 20 17 Q22 20, 24 19"/></svg>
-              </div>
-              <h3 class="card-title">洞察报告</h3>
-              <p class="card-desc">基于严谨数学方法，提炼可读性极强的结论</p>
-            </div>
-          </div>
+            <button class="refresh-roadmap" :disabled="refreshing" @click="refreshRoadmap">
+              {{ refreshing ? '分析中…' : '重新分析数据关系' }}
+            </button>
+          </template>
         </div>
 
         <!-- 消息列表 -->
@@ -195,35 +198,8 @@
     :roadmap="chatStore.roadmap"
     :workspace="chatStore.currentWorkspace"
     @close="showRoadmapModal = false"
-    @ask="q => { inputMessage.value = q; sendMessage() }"
+    @ask="fillInput"
   />
-
-  <Teleport to="body">
-    <div v-if="showMountDialog" class="file-selector-overlay" @click.self="showMountDialog = false">
-      <div class="file-selector-popup">
-        <div class="file-selector-header">
-          <h4>挂载本地文件夹</h4>
-          <button class="close-btn" @click="showMountDialog = false" aria-label="关闭">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-          </button>
-        </div>
-        <div class="mount-form">
-          <label>
-            文件夹路径
-            <input v-model="mountPath" type="text" placeholder="/Users/teacher/期末数据" />
-          </label>
-          <label>
-            名称（可选）
-            <input v-model="mountName" type="text" placeholder="期末数据" />
-          </label>
-        </div>
-        <div class="file-selector-actions">
-          <button class="btn btn-secondary" @click="showMountDialog = false">取消</button>
-          <button class="btn btn-primary" @click="handleMount" :disabled="!mountPath.trim()">挂载</button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
 </template>
 
 <script setup>
@@ -232,12 +208,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { filesApi } from '@/api/files'
-import { workspacesApi } from '@/api/workspaces'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import AgentSteps from '@/components/AgentSteps.vue'
-import WorkspaceBar from '@/components/WorkspaceBar.vue'
-import RecommendedQuestions from '@/components/RecommendedQuestions.vue'
+import WorkspaceNotes from '@/components/WorkspaceNotes.vue'
 import WelcomeRoadmapModal from '@/components/WelcomeRoadmapModal.vue'
 
 const userStore = useUserStore()
@@ -253,9 +227,71 @@ const availableFiles = ref([])
 const tempSelectedFiles = ref([])
 const risingPapers = ref(new Set())
 const showRoadmapModal = ref(false)
-const showMountDialog = ref(false)
-const mountPath = ref('')
-const mountName = ref('')
+
+// 会话按时间分组：本周 / 本月 / 本年 / 更早；默认只展开「本周」
+const collapsedGroups = ref(new Set(['month', 'year', 'earlier']))
+
+function toggleGroup(key) {
+  const next = new Set(collapsedGroups.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  collapsedGroups.value = next
+}
+
+const conversationGroups = computed(() => {
+  const now = new Date()
+  const startOfWeek = new Date(now)
+  startOfWeek.setHours(0, 0, 0, 0)
+  startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7)) // 周一为一周起点
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const startOfYear = new Date(now.getFullYear(), 0, 1)
+
+  const groups = [
+    { key: 'week', label: '本周', items: [] },
+    { key: 'month', label: '本月', items: [] },
+    { key: 'year', label: '本年', items: [] },
+    { key: 'earlier', label: '更早', items: [] }
+  ]
+  for (const conv of chatStore.conversations) {
+    const t = new Date(conv.updated_at || conv.created_at || Date.now())
+    if (isNaN(t.getTime()) || t >= startOfWeek) groups[0].items.push(conv)
+    else if (t >= startOfMonth) groups[1].items.push(conv)
+    else if (t >= startOfYear) groups[2].items.push(conv)
+    else groups[3].items.push(conv)
+  }
+  return groups.filter(g => g.items.length > 0)
+})
+
+// 推荐问题统一为 {question, type} 对象数组（兼容后端返回纯字符串的情况）
+const recommendedQuestions = computed(() => {
+  const qs = chatStore.roadmap?.questions || []
+  return qs
+    .map(q => (typeof q === 'string' ? { question: q, type: '' } : { question: q?.question || '', type: q?.type || '' }))
+    .filter(q => q.question)
+})
+
+// 重新分析数据关系（force 刷新 roadmap）
+const refreshing = ref(false)
+async function refreshRoadmap() {
+  if (refreshing.value) return
+  refreshing.value = true
+  try {
+    await chatStore.fetchRoadmap(true)
+  } catch (e) {
+    alert('重新分析失败：' + (e.response?.data?.detail || e.message))
+  } finally {
+    refreshing.value = false
+  }
+}
+
+// 点击推荐问题：填入输入框待用户确认，不直接发送
+function fillInput(q) {
+  inputMessage.value = typeof q === 'string' ? q : q?.question || ''
+  nextTick(() => {
+    inputRef.value?.focus()
+    autoResize()
+  })
+}
 
 function handleTvOff(messageId) {
   risingPapers.value.add(messageId)
@@ -295,7 +331,6 @@ async function sendMessage() {
   scrollToBottom()
 }
 
-function sendQuick(text) { inputMessage.value = text; sendMessage() }
 function createNewChat() {
   chatStore.createNewConversation()
   router.push('/')
@@ -340,60 +375,19 @@ function shouldShowRoadmapModal() {
 }
 
 function editOutputPath() {
-  const ws = chatStore.currentWorkspace
-  if (!ws) return
-  const newPath = prompt('修改输出目录：', ws.output_path)
-  if (newPath && newPath !== ws.output_path) {
-    // handled by WorkspaceBar; this is a fallback inline edit
-  }
+  router.push('/workspace')
 }
 
 async function loadWorkspaceAndRoadmap() {
   await chatStore.fetchWorkspaces()
   if (chatStore.currentWorkspaceId) {
     await chatStore.fetchRoadmap()
-    if (chatStore.roadmap?.questions?.length && shouldShowRoadmapModal()) {
+    // /workspace 页挂载成功后带回的待显示标记：无视「今天不再提示」强制弹一次
+    const pending = chatStore.pendingRoadmapModal
+    chatStore.pendingRoadmapModal = false
+    if (chatStore.roadmap?.questions?.length && (pending || shouldShowRoadmapModal())) {
       showRoadmapModal.value = true
     }
-  }
-}
-
-async function handleMount() {
-  if (!mountPath.value.trim()) return
-  const path = mountPath.value.trim()
-
-  // 去重检查：已挂载过的路径不允许重复挂载
-  const existing = chatStore.workspaces.find(
-    w => w.type === 'external' && w.source_path === path
-  )
-  if (existing) {
-    alert(`该文件夹已挂载（工作区"${existing.name}"），无需重复挂载。`)
-    mountPath.value = ''
-    mountName.value = ''
-    showMountDialog.value = false
-    // 自动切换到已存在的 workspace
-    chatStore.setCurrentWorkspace(existing.id)
-    return
-  }
-
-  try {
-    const res = await workspacesApi.mount({
-      local_path: path,
-      name: mountName.value.trim() || '本地文件夹'
-    })
-    mountPath.value = ''
-    mountName.value = ''
-    showMountDialog.value = false
-    await loadWorkspaceAndRoadmap()
-    // 自动切换到新挂载的 workspace
-    if (res.data?.id) {
-      chatStore.setCurrentWorkspace(res.data.id)
-    }
-    if (chatStore.roadmap?.questions?.length) {
-      showRoadmapModal.value = true
-    }
-  } catch (e) {
-    alert('挂载失败：' + (e.response?.data?.detail || e.message))
   }
 }
 
@@ -444,6 +438,45 @@ watch(() => route.params?.id, (newId) => {
   gap: var(--space-3);
   z-index: 10;
   max-width: 210px;
+}
+
+/* 会话时间分组（本周/本月/本年/更早） */
+.conv-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.conv-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  font-family: var(--font-serif);
+  font-size: 11px;
+  color: var(--ink-brown-lighter);
+  letter-spacing: 0.5px;
+  text-align: left;
+}
+
+.conv-group-header:hover { color: var(--ink-brown); }
+
+.group-arrow {
+  font-size: 9px;
+  display: inline-block;
+  transform: rotate(-90deg);
+  transition: transform var(--duration-fast) ease;
+}
+
+.group-arrow.open { transform: rotate(0deg); }
+
+.group-count {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  color: var(--text-tertiary);
 }
 
 .index-card {
@@ -1156,27 +1189,47 @@ watch(() => route.params?.id, (newId) => {
 
 .tip.readonly { color: var(--text-tertiary); }
 
-.mount-form {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.mount-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* ── 37 的发现：欢迎页推荐问题横排卡片 ── */
+.findings-label {
+  font-family: var(--font-serif);
   font-size: 13px;
-  color: var(--ink-70);
+  color: var(--ink-brown-lighter);
+  letter-spacing: 0.5px;
 }
 
-.mount-form input {
-  padding: 8px 10px;
-  border: 0.5px solid var(--ink-20);
-  border-radius: 4px;
-  font-size: 14px;
-  background: var(--paper);
+.finding-card {
+  text-align: left;
+}
+
+.finding-card .card-desc {
+  /* 推荐问题较长，最多显示 4 行 */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.refresh-roadmap {
+  margin-top: var(--space-4);
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--duration-fast) ease;
+}
+
+.refresh-roadmap:hover:not(:disabled) {
+  color: var(--ink-brown);
+}
+
+.refresh-roadmap:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 /* ══════════════════════════════════════

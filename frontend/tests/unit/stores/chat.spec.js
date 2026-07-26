@@ -14,7 +14,8 @@ vi.mock('@/api/chat', () => ({
 
 vi.mock('@/api/workspaces', () => ({
   workspacesApi: {
-    list: vi.fn()
+    list: vi.fn(),
+    sync: vi.fn(() => Promise.resolve({ data: { new_files: 0 } }))
   }
 }))
 
@@ -313,12 +314,40 @@ describe('Chat Store', () => {
       
       await store.setCurrentWorkspace(2)
       
-      expect(roadmapApi.get).toHaveBeenCalledWith(2)
+      expect(roadmapApi.get).toHaveBeenCalledWith(2, false)
       expect(store.currentWorkspaceId).toBe(2)
       expect(store.roadmap).toEqual({
         workspace_id: 2,
         stages: [{ id: 's1', name: '阶段1' }]
       })
+    })
+
+    it('fetchRoadmap(force=true) 透传强制刷新参数（重新分析数据关系）', async () => {
+      const store = useChatStore()
+      roadmapApi.get.mockResolvedValue({ data: { workspace_id: 2, questions: [] } })
+
+      await store.setCurrentWorkspace(2)
+      roadmapApi.get.mockClear()
+
+      await store.fetchRoadmap(true)
+      expect(roadmapApi.get).toHaveBeenCalledWith(2, true)
+    })
+
+    it('切换 external 空间时触发实时同步，internal 不触发', async () => {
+      const store = useChatStore()
+      store.workspaces = [
+        { id: 1, name: '上传空间', type: 'internal' },
+        { id: 2, name: '期末数据', type: 'external' }
+      ]
+      roadmapApi.get.mockResolvedValue({ data: { questions: [] } })
+
+      workspacesApi.sync.mockClear()
+      await store.setCurrentWorkspace(2)
+      expect(workspacesApi.sync).toHaveBeenCalledWith(2)
+
+      workspacesApi.sync.mockClear()
+      await store.setCurrentWorkspace(1)
+      expect(workspacesApi.sync).not.toHaveBeenCalled()
     })
 
     it('当前无工作空间时不获取路线图', async () => {

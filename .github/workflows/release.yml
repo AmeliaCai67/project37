@@ -1,0 +1,92 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r requirements-build.txt
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+      - name: Build Windows executable
+        run: |
+          pyinstaller scripts/Project37-windows.spec
+      - name: Zip output
+        run: |
+          Compress-Archive -Path dist/Project37 -DestinationPath dist/Project37-Windows.zip
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project37-Windows
+          path: dist/Project37-Windows.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r requirements-build.txt
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+      - name: Build macOS app
+        run: |
+          pyinstaller scripts/Project37-mac.spec
+      - name: Zip output
+        run: |
+          ditto -c -k --keepParent dist/Project37.app dist/Project37-Mac.zip
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Project37-Mac
+          path: dist/Project37-Mac.zip
+
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Project37-Windows
+          path: ./artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: Project37-Mac
+          path: ./artifacts
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./artifacts/*
+          generate_release_notes: true

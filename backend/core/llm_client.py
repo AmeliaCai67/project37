@@ -35,6 +35,8 @@ class LLMClient:
         messages: List[Dict[str, str]],
         stream: bool = False,
         tools: Optional[List[dict]] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
     ) -> Dict:
         """
         非流式对话
@@ -43,6 +45,8 @@ class LLMClient:
             messages: [{"role": "user", "content": "..."}, ...]
             stream: 是否流式返回
             tools: 工具调用定义
+            temperature: 可选，覆盖实例默认温度
+            max_tokens: 可选，覆盖实例默认最大 token 数
         """
         url = f"{self.base_url}/chat/completions"
         
@@ -58,8 +62,8 @@ class LLMClient:
         payload = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
+            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
+            "temperature": temperature if temperature is not None else self.temperature,
             "stream": stream,
         }
         
@@ -84,8 +88,16 @@ class LLMClient:
     async def chat_completion_stream(
         self,
         messages: List[Dict[str, str]],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
     ) -> AsyncGenerator[str, None]:
-        """流式对话，返回 SSE 格式的字符串"""
+        """流式对话，返回 SSE 格式的字符串
+
+        Args:
+            messages: [{"role": "user", "content": "..."}, ...]
+            temperature: 可选，覆盖实例默认温度
+            max_tokens: 可选，覆盖实例默认最大 token 数
+        """
         url = f"{self.base_url}/chat/completions"
         
         headers = {
@@ -96,8 +108,8 @@ class LLMClient:
         payload = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
+            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
+            "temperature": temperature if temperature is not None else self.temperature,
             "stream": True,
         }
         
@@ -117,6 +129,17 @@ class LLMClient:
                         except (json.JSONDecodeError, KeyError):
                             continue
     
+    def reload(self):
+        """从当前 settings 与环境变量重新加载配置。"""
+        import os
+
+        self.provider = os.environ.get("LLM_PROVIDER", settings.LLM_PROVIDER)
+        self.api_key = os.environ.get("LLM_API_KEY", settings.LLM_API_KEY)
+        self.base_url = os.environ.get("LLM_BASE_URL") or self._get_base_url()
+        self.model = os.environ.get("LLM_MODEL", settings.LLM_MODEL)
+        self.max_tokens = int(os.environ.get("LLM_MAX_TOKENS", settings.LLM_MAX_TOKENS))
+        self.temperature = float(os.environ.get("LLM_TEMPERATURE", settings.LLM_TEMPERATURE))
+
     def build_messages(
         self,
         user_message: str,

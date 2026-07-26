@@ -22,10 +22,14 @@ logger = get_logger(__name__)
 )
 async def get_roadmap(
     workspace_id: int,
+    force: bool = False,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """获取指定工作空间的数据画像与推荐问题"""
+    """获取指定工作空间的数据画像与推荐问题
+
+    force=true 时忽略缓存强制重建（「重新分析数据关系」按钮使用）。
+    """
     ws = db.query(Workspace).filter_by(
         id=workspace_id, owner_id=current_user.id
     ).first()
@@ -36,7 +40,7 @@ async def get_roadmap(
         )
 
     try:
-        roadmap = await RoadmapService.build_roadmap(ws)
+        roadmap = await RoadmapService.build_roadmap(ws, force_refresh=force, db=db)
     except Exception:
         logger.exception("Failed to build roadmap for workspace %s", workspace_id)
         raise HTTPException(

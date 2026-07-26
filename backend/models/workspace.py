@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from models.base import Base
@@ -14,6 +14,9 @@ class Workspace(Base):
     source_path = Column(String, nullable=True)
     output_path = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    # 手动「移出档案柜」的同步黑名单（JSON 数组：[{"name", "deleted_source_mtime"}]）
+    # 仅对 external 空间有意义；源文件被修改（mtime 更新）后自动移出黑名单
+    sync_exclusions = Column(Text, nullable=False, default="[]")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

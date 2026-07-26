@@ -4,6 +4,8 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, UploadFile, File, Query, status
 from sqlalchemy.orm import Session
 
+from pathlib import Path
+
 from config import settings
 from models.base import get_db
 from models.user import User, Role
@@ -122,7 +124,27 @@ async def delete_file(
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """删除文件 - 需要 write 或 admin 权限"""
+    """删除文件 - 需要 write 或 admin 权限
+
+    若文件属于 external 空间的隔离副本，将文件名加入该空间同步黑名单：
+    之后不再自动同步，除非用户在源文件夹修改了该文件。
+    """
+    db_file = FileService.get_by_id(db, file_id)
+    if db_file and db_file.owner_id == current_user.id:
+        ws = db_file.workspace
+        if ws and ws.type == "external":
+            copy_dir = WorkspaceService.get_internal_copy_dir(ws.owner_id, ws.id)
+            try:
+                in_copy_dir = Path(db_file.filepath).parent == copy_dir
+            except Exception:
+                in_copy_dir = False
+            if in_copy_dir:
+                src_file = Path(ws.source_path) / db_file.filename
+                source_mtime = src_file.stat().st_mtime if src_file.exists() else None
+                WorkspaceService.add_sync_exclusion(
+                    db, ws, db_file.filename, source_mtime
+                )
+
     success = FileService.delete(db, file_id, current_user.id)
     if not success:
         raise HTTPException(

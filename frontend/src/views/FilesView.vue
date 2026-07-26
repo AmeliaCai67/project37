@@ -39,8 +39,22 @@
       />
     </div>
 
+    <!-- 加载/同步中：不显示「档案柜为空」误导 -->
+    <div v-if="loading" class="empty-cabinet">
+      <div class="empty-geometry syncing">
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <rect x="4" y="4" width="56" height="56" stroke="#B0A080" stroke-width="0.5"/>
+          <rect x="12" y="12" width="40" height="40" stroke="#B0A080" stroke-width="0.5"/>
+          <line x1="32" y1="12" x2="32" y2="52" stroke="#B0A080" stroke-width="0.5"/>
+          <line x1="12" y1="32" x2="52" y2="32" stroke="#B0A080" stroke-width="0.5"/>
+        </svg>
+      </div>
+      <p class="empty-title">37 努力搬运中…</p>
+      <p class="empty-tip">正在同步并索引当前数据空间的文件</p>
+    </div>
+
     <!-- 空状态 -->
-    <div v-if="files.length === 0" class="empty-cabinet">
+    <div v-else-if="files.length === 0" class="empty-cabinet">
       <div class="empty-geometry">
         <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
           <rect x="4" y="4" width="56" height="56" stroke="#B0A080" stroke-width="0.5"/>
@@ -196,6 +210,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
 import { filesApi } from '@/api/files'
+import { workspacesApi } from '@/api/workspaces'
 
 const userStore = useUserStore()
 const chatStore = useChatStore()
@@ -204,6 +219,9 @@ const files = ref([])
 const fileInput = ref(null)
 const uploading = ref(false)
 const uploadProgress = ref(0)
+const loading = ref(false)
+// 防止 onMounted + watch 同时触发导致的并发同步/闪烁假空
+let syncLocked = false
 
 const currentWorkspaceId = computed({
   get: () => chatStore.currentWorkspaceId,
@@ -237,7 +255,19 @@ async function handleFileChange(event) {
   loadFiles()
 }
 
+// external 空间先实时同步源文件夹（快速返回，提取走后台），再拉取列表
+async function syncCurrentWorkspace() {
+  const ws = chatStore.workspaces.find(w => w.id === currentWorkspaceId.value)
+  if (ws?.type !== 'external') return
+  try {
+    await workspacesApi.sync(ws.id)
+  } catch (error) {
+    console.warn('同步数据空间失败:', error)
+  }
+}
+
 async function loadFiles() {
+  loading.value = true
   try {
     const params = {}
     if (currentWorkspaceId.value) params.workspace_id = currentWorkspaceId.value
@@ -245,11 +275,26 @@ async function loadFiles() {
     files.value = res.data || []
   } catch (error) {
     console.error('加载文件失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function syncAndLoad() {
+  if (syncLocked) return
+  syncLocked = true
+  loading.value = true
+  try {
+    await syncCurrentWorkspace()
+    await loadFiles()
+  } finally {
+    loading.value = false
+    syncLocked = false
   }
 }
 
 watch(currentWorkspaceId, () => {
-  loadFiles()
+  syncAndLoad()
 })
 
 async function deleteFile(file) {
@@ -304,7 +349,7 @@ function getStatusText(status) {
 }
 
 onMounted(() => {
-  chatStore.fetchWorkspaces().then(() => loadFiles())
+  chatStore.fetchWorkspaces().then(() => syncAndLoad())
 })
 </script>
 
@@ -402,6 +447,15 @@ onMounted(() => {
   justify-content: center;
   margin-bottom: var(--space-6);
   opacity: 0.5;
+}
+
+.empty-geometry.syncing {
+  animation: syncing-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes syncing-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.04); }
 }
 
 .empty-title {

@@ -48,6 +48,26 @@ async def register(user_create: UserCreate, db: Session = Depends(get_db)):
         )
 
 
+@router.post("/auto", response_model=Token)
+async def auto_login(db: Session = Depends(get_db)):
+    """打包版自动登录：personal 模式下自动创建/返回默认用户 Token。"""
+    if settings.APP_MODE != "personal":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="auto login 仅在 personal 模式下可用",
+        )
+    user = UserService.get_or_create_default_user(db)
+    access_token = create_access_token(
+        data={"sub": user.username, "role": user.role.value}
+    )
+    logger.info(f"Auto logged in: {user.username}")
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+
+
 @router.post("/login", response_model=Token)
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
