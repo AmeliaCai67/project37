@@ -59,4 +59,8 @@ def main():
 
 
 if __name__ == "__main__":
+    import multiprocessing
+
+    # PyInstaller 打包后沙箱改用 multiprocessing spawn 子进程，必须 freeze_support
+    multiprocessing.freeze_support()
     main()

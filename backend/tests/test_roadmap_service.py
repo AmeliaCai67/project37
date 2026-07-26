@@ -106,26 +106,36 @@ async def test_build_roadmap_cache_not_in_source_dir(db_session, upload_root):
     assert not (src / "schema_graph.json").exists()
 
 
+def _table_node(table_id, columns=None, row_count=100):
+    """构造符合 schema_profiler 真实产出的表节点"""
+    return {
+        "id": table_id,
+        "type": "table",
+        "columns": columns or [],
+        "row_count": row_count,
+    }
+
+
 def test_fallback_questions_uses_edges_and_nodes():
     graph = {
         "nodes": [
-            {"name": "语文成绩"},
-            {"name": "数学成绩"},
+            _table_node("语文成绩"),
+            _table_node("数学成绩"),
         ],
         "edges": [
             {
                 "source": "语文成绩.学生姓名",
                 "target": "数学成绩.学生姓名",
-                "source_column": "学生姓名",
-                "target_column": "学生姓名",
+                "type": "same_column_name",
                 "confidence": 1.0,
             }
         ],
     }
     questions = RoadmapService.fallback_questions(graph)
     assert len(questions) > 0
-    assert "语文成绩" in questions[0]
-    assert "数学成绩" in questions[0]
+    assert "语文成绩" in questions[0]["question"]
+    assert "数学成绩" in questions[0]["question"]
+    assert questions[0]["type"] == "关联分析"
 
 
 def test_fallback_questions_empty_graph():
@@ -140,32 +150,76 @@ async def test_generate_questions_falls_back_on_llm_failure():
             raise RuntimeError("LLM failed")
 
     graph = {
-        "nodes": [{"name": "语文成绩"}],
+        "nodes": [_table_node("语文成绩")],
         "edges": [],
     }
     questions = await RoadmapService.generate_questions(graph, llm_client=FailingLLM())
     assert len(questions) > 0
-    assert "语文成绩" in questions[0]
+    assert "语文成绩" in questions[0]["question"]
 
 
 @pytest.mark.asyncio
-async def test_generate_questions_parses_dash_list():
+async def test_generate_questions_parses_llm_json():
+    """LLM 返回 JSON 数组（可带 Markdown 围栏）时应被解析为问题 dict"""
+    llm = FakeLLM(
+        '```json\n[{"question": "语文和数学成绩的相关性如何？", "tables": ["语文成绩", "数学成绩"], "type": "关联分析"},'
+        '{"question": "谁的总分最高？", "tables": ["语文成绩"], "type": "排名/分布"}]\n```'
+    )
     graph = {
-        "nodes": [{"name": "语文成绩"}, {"name": "数学成绩"}],
+        "nodes": [_table_node("语文成绩"), _table_node("数学成绩")],
         "edges": [
             {
                 "source": "语文成绩.学生姓名",
                 "target": "数学成绩.学生姓名",
-                "source_column": "学生姓名",
-                "target_column": "学生姓名",
+                "type": "same_column_name",
                 "confidence": 1.0,
             }
         ],
     }
-    questions = await RoadmapService.generate_questions(graph, llm_client=FakeLLM())
+    questions = await RoadmapService.generate_questions(graph, llm_client=llm)
     assert len(questions) == 2
-    assert "语文" in questions[0]
-    assert "总分" in questions[1]
+    assert "语文" in questions[0]["question"]
+    assert "总分" in questions[1]["question"]
+
+
+@pytest.mark.asyncio
+async def test_generate_questions_layered_fallback_types():
+    """LLM 不可用时，兜底问题应按图谱分层：关联/趋势/排名/对比至少覆盖 3 类，无空表名"""
+    class FailingLLM:
+        async def chat_completion(self, messages, **kwargs):
+            raise RuntimeError("LLM failed")
+
+    graph = {
+        "nodes": [
+            _table_node("orders", row_count=1000),
+            _table_node("items", row_count=3000),
+            {"id": "orders.order_id", "type": "column", "table": "orders", "column": "order_id", "dtype": "string", "cardinality": 1000, "semantic_type": "uuid"},
+            {"id": "orders.created_at", "type": "column", "table": "orders", "column": "created_at", "dtype": "datetime", "cardinality": 900, "semantic_type": "datetime_iso"},
+            {"id": "orders.price", "type": "column", "table": "orders", "column": "price", "dtype": "numeric", "cardinality": 500, "semantic_type": None},
+            {"id": "orders.state", "type": "column", "table": "orders", "column": "state", "dtype": "string", "cardinality": 5, "semantic_type": None},
+            {"id": "items.order_id", "type": "column", "table": "items", "column": "order_id", "dtype": "string", "cardinality": 1000, "semantic_type": "uuid"},
+        ],
+        "edges": [
+            {
+                "source": "orders.order_id",
+                "target": "items.order_id",
+                "type": "same_column_name",
+                "confidence": 0.95,
+            },
+            # 噪声边：低置信度 / 非同名列类型，不应产生关联问题
+            {"source": "orders.price", "target": "items.order_id", "type": "distribution_similar", "confidence": 0.5},
+        ],
+    }
+    questions = await RoadmapService.generate_questions(graph, llm_client=FailingLLM())
+    types = {q["type"] for q in questions}
+    assert len(types) >= 3
+    assert "关联分析" in types
+    assert "趋势/周期" in types
+    for q in questions:
+        assert q["question"].strip()
+        assert all(t.strip() for t in q["tables"])
+    # 无重复问题
+    assert len({q["question"] for q in questions}) == len(questions)
 
 
 def test_build_roadmap_resolves_internal_workspace_path(db_session, upload_root):

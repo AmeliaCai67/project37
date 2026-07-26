@@ -52,6 +52,7 @@ class AgentService:
         base_prompt = """你是一个智能数据分析助手，必须严格使用 ReAct (Reasoning + Acting) 模式帮助用户分析文件数据。
 
 **核心原则**：在没有使用工具查看文件之前，你绝对不允许直接给出答案。禁止根据训练数据猜测文件内容。
+**例外**：如果用户已经在当前对话中明确提供了具体数据、走势描述或事实，且工作目录中没有对应文件，你可以直接基于用户已提供的信息进行分析与推理，无需强制搜索文件。
 
 你的工作流程是:
 1. Thought: 分析用户问题，思考需要什么信息
@@ -150,6 +151,7 @@ class AgentService:
  
  重要规则:
  - **格式强制**：每条回复必须以 Thought: 开头，然后包含 Action: + Action Input: 或 Answer:。不得输出无前缀的自由文本。
+ - **严禁污染 Observation**：Observation 由系统自动追加到你的 Action Input 之后，你绝对不能在自己的回复里写出 "Observation:" 字段。
  - 在没有使用工具查看文件前，绝对禁止直接给出 Answer
  - 如果文件很大，先使用 stat 了解结构，再使用 read 分页读取
  - 对于复杂分析，使用 exec 工具编写 Python 代码
@@ -158,8 +160,11 @@ class AgentService:
  - **输出规范**：禁止在回答中使用任何 emoji 表情符号（如 ✅❌📊📈等），请使用纯文本格式。
  - **代码规范**：exec 中编写的 Python 代码必须使用英文标点（, . : ;），严禁使用中文标点（，。：；），否则会导致语法错误。
  - **数据文件读取**：分析数据文件时，必须使用 read 工具读取（参数 path 为文件名即可），或使用 exec 中的 pandas.read_csv('文件名')。绝对禁止在 exec 代码中硬编码绝对路径（如 /Users/... 或 /sandbox_output/...）。数据文件位于当前工作目录，直接用文件名即可访问。
+ - **文件格式判断**：不要仅凭扩展名判断文件格式。如果 pd.read_csv('文件名') 失败，尝试 pd.read_excel('文件名')；反之亦然。对于 .xlsx / .xls 文件，沙箱已预配置 openpyxl 环境，可直接使用 pd.read_excel。
  - **文件保护**：你只能读取工作目录中的文件，禁止修改、删除或覆盖任何源文件。
  - **输出目录**：所有输出文件（图表、报告、CSV 结果）必须保存到 /sandbox_output/ 目录下。如果用户没有要求保存，你也应该把有价值的交付物自动保存到 /sandbox_output/。
+- **图表字体**：沙箱已预配置 matplotlib 中文字体支持，严禁自行设置 font.sans-serif / font.family / fontproperties（尤其不要硬编码 SimHei），直接画图即可正确显示中文。
+- **路径规范**：禁止在 Answer 中提及 /sandbox_output 虚拟路径（它是沙箱内部前缀，用户无法访问）；交付物的实际保存位置由系统自动展示给用户，无需你在回答中说明路径。
  """
         return prompt
     
@@ -187,10 +192,18 @@ class AgentService:
             action_inputs = re.findall(r'Action Input:\s*(\{[^}]+\}|.+?)(?=\n(?:Thought|Action|Answer):|$)', content, re.DOTALL)
             if action_inputs:
                 input_str = action_inputs[-1].strip()
+                # 防止 LLM 把 Observation 写进 Action Input
+                if "Observation:" in input_str:
+                    input_str = input_str.split("Observation:")[0].strip()
                 try:
                     result["action_input"] = json.loads(input_str)
                 except json.JSONDecodeError:
-                    result["action_input"] = {"command": input_str} if result["action"] == "exec" else {"path": input_str}
+                    if result["action"] == "exec":
+                        result["action_input"] = {"command": input_str}
+                    elif result["action"] == "glob":
+                        result["action_input"] = {"pattern": input_str.strip('"').strip("'")}
+                    else:
+                        result["action_input"] = {"path": input_str}
 
         # 提取 Answer：只有没有 Action 时才提取（防止 LLM 编造的多轮历史里混入旧 Answer）
         if not result["action"]:

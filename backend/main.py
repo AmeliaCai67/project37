@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from config import settings
-from models.base import Base, engine
+from models.base import Base, engine, ensure_columns
 from models import File  # 导入模型以确保表被创建
 from api import api_router
 from core.logging import setup_logging, get_logger
@@ -24,8 +24,9 @@ async def lifespan(app: FastAPI):
     # 启动时
     logger.info(f"Starting {settings.APP_NAME} in {settings.ENV} mode")
 
-    # 创建数据库表
+    # 创建数据库表并为老库补列
     Base.metadata.create_all(bind=engine)
+    ensure_columns()
     logger.info("Database tables initialized")
 
     yield

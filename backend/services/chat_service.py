@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional
 from pathlib import Path
+from datetime import datetime
 import json
 
 from sqlalchemy.orm import Session
@@ -23,6 +24,49 @@ class ChatService:
 
     HISTORY_MAX_PAIRS = 5          # 最多保留的历史问答对数
     HISTORY_MAX_ANSWER_CHARS = 500  # 每条历史回答的最大字符数
+
+    @staticmethod
+    def _replace_sandbox_paths(text: str, output_dir: str) -> str:
+        """把答案中残留的 /sandbox_output 虚拟路径替换为真实输出路径（双保险，
+        系统提示词已禁止 LLM 提及该前缀）。"""
+        if not text or "/sandbox_output" not in text:
+            return text or ""
+        base = output_dir.rstrip("/")
+        return text.replace("/sandbox_output/", f"{base}/").replace(
+            "/sandbox_output", base
+        )
+
+    @staticmethod
+    def _save_answer_markdown(output_dir: str, question: str, answer: str) -> Optional[Path]:
+        """把本次问答以 Markdown 写入输出目录（回答本身也是交付物），
+        并附上当前输出目录中的产物清单。失败不阻塞主流程。"""
+        try:
+            out = Path(output_dir)
+            out.mkdir(parents=True, exist_ok=True)
+            now = datetime.now()
+            artifacts = [
+                p.name for p in sorted(out.iterdir())
+                if p.is_file() and not p.name.startswith("回答_") and not p.name.startswith(".")
+            ]
+            lines = [
+                "# 问数回答",
+                "",
+                f"- 时间：{now.strftime('%Y-%m-%d %H:%M:%S')}",
+                f"- 问题：{question}",
+                "",
+                "---",
+                "",
+                answer or "（未生成回答）",
+            ]
+            if artifacts:
+                lines += ["", "---", "", "## 产物清单", ""]
+                lines += [f"- {name}" for name in artifacts]
+            md_path = out / f"回答_{now.strftime('%Y%m%d_%H%M%S')}.md"
+            md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            return md_path
+        except Exception:
+            logger.warning("Failed to save answer markdown", exc_info=True)
+            return None
 
     @staticmethod
     def _resolve_file_names(db: Session, file_ids: List[int], user_id: int) -> List[str]:
@@ -123,7 +167,8 @@ class ChatService:
         if ws.type == "external":
             # Copy isolation: agent works on internal copy
             copy_dir = WorkspaceService.get_internal_copy_dir(user.id, ws.id)
-            WorkspaceService.sync_external_to_copy(ws, copy_dir)
+            # 同步 + 增量登记 File 记录（源目录新增的文件也会出现在【文件】页）
+            WorkspaceService.sync_and_register(db, user, ws)
             working_dir = str(copy_dir)
         else:
             working_dir = str(FileService._get_user_dir(user.id))
@@ -203,11 +248,17 @@ class ChatService:
         if not result.get("success", True):
             result["answer"] = "抱歉，AI 处理过程出现错误。请稍后重试。"
 
+        # 答案中的 /sandbox_output 虚拟路径替换为真实输出路径
+        result["answer"] = ChatService._replace_sandbox_paths(result["answer"], output_dir)
+
         # 保存 AI 回复
         assistant_msg = ConversationService.add_message(
             db, conversation.id, MessageRole.ASSISTANT,
             result["answer"], result.get("tokens_used", 0)
         )
+
+        # 回答本身也作为交付物存为 Markdown（保证「结果已保存到…」始终有真实内容）
+        ChatService._save_answer_markdown(output_dir, message, result["answer"])
 
         # 记录输出交付物
         artifacts = OutputArtifactService.scan_and_record(
@@ -287,23 +338,33 @@ class ChatService:
                                                  history=history):
                 if event.strip() == "data: [DONE]":
                     continue
-                buffered_events.append(event)
-                yield event
-                # 从 SSE 事件中提取最终答案
+                # 答案事件先替换虚拟路径再透传给前端
                 if event.startswith("data: "):
                     try:
                         data = json.loads(event[6:])
                         if data.get("type") == "answer":
-                            full_answer = data.get("content", "")
+                            data["content"] = ChatService._replace_sandbox_paths(
+                                data.get("content", ""), output_dir
+                            )
+                            full_answer = data["content"]
+                            event = f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
                     except json.JSONDecodeError:
                         pass
+                buffered_events.append(event)
+                yield event
             
+            # 答案中的 /sandbox_output 虚拟路径替换为真实输出路径
+            full_answer = ChatService._replace_sandbox_paths(full_answer, output_dir)
+
             # 保存完整响应到数据库
             if full_answer:
                 ConversationService.add_message(
                     db, conversation.id, MessageRole.ASSISTANT,
                     full_answer, tokens_used=0
                 )
+
+            # 回答本身也作为交付物存为 Markdown
+            ChatService._save_answer_markdown(output_dir, message, full_answer)
 
             # 记录输出交付物
             OutputArtifactService.scan_and_record(
@@ -316,5 +377,13 @@ class ChatService:
                 
         except Exception as e:
             logger.error(f"Agent stream failed: {e}")
+            # 失败也尽力保存已收集的回答内容
+            try:
+                ChatService._save_answer_markdown(
+                    output_dir, message,
+                    full_answer or f"（处理失败：{e}）",
+                )
+            except Exception:
+                pass
             yield f'data: {{"type": "error", "content": "{str(e)}"}}\n\n'
             yield "data: [DONE]\n\n"

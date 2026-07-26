@@ -27,6 +27,9 @@ export const useChatStore = defineStore('chat', () => {
   const workspaces = ref([])
   const currentWorkspaceId = ref(null)
   const roadmap = ref(null)
+  // 挂载成功后的待显示 roadmap 欢迎弹窗标记
+  // （挂载发生在 /workspace 页，弹窗由导航回对话页后的 ChatView 消费）
+  const pendingRoadmapModal = ref(false)
 
   // Getters
   const currentConversation = computed(() => {
@@ -266,9 +269,9 @@ export const useChatStore = defineStore('chat', () => {
   /**
    * 获取路线图
    */
-  async function fetchRoadmap() {
+  async function fetchRoadmap(force = false) {
     if (!currentWorkspaceId.value) return
-    const res = await roadmapApi.get(currentWorkspaceId.value)
+    const res = await roadmapApi.get(currentWorkspaceId.value, force)
     roadmap.value = res.data
   }
 
@@ -277,6 +280,11 @@ export const useChatStore = defineStore('chat', () => {
    */
   async function setCurrentWorkspace(id) {
     currentWorkspaceId.value = id
+    // external 空间实时同步源文件夹（fire-and-forget，不阻塞切换）
+    const ws = workspaces.value.find(w => w.id === id)
+    if (ws?.type === 'external') {
+      workspacesApi.sync(id).catch(e => console.warn('同步数据空间失败:', e))
+    }
     await fetchRoadmap()
   }
 
@@ -316,6 +324,7 @@ export const useChatStore = defineStore('chat', () => {
     workspaces,
     currentWorkspaceId,
     roadmap,
+    pendingRoadmapModal,
     currentConversation,
     currentWorkspace,
     hasSelectedFiles,

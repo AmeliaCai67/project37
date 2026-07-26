@@ -14,6 +14,73 @@ from pathlib import Path
 from typing import Dict, Any, Set
 
 
+def _is_frozen() -> bool:
+    """是否运行在 PyInstaller 打包环境（单独抽出来便于测试 patch）。"""
+    return getattr(sys, "frozen", False)
+
+
+def _sandbox_child_entry(conn, working_dir: str, sandbox_code: str) -> None:
+    """multiprocessing spawn 子进程入口：在受限环境下执行沙箱脚本并回传结果。
+
+    必须是模块级函数（spawn 通过 pickle 按引用序列化，子进程按
+    `core.sandbox._sandbox_child_entry` 导入它）。
+    """
+    import contextlib
+    import io
+    import os
+    import tempfile
+    import traceback
+
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    returncode = 0
+    temp_script = None
+    try:
+        os.chdir(working_dir)
+        # 沙箱是无头环境：强制 matplotlib 使用 Agg 后端，并把配置/字体缓存
+        # 指到工作目录下的固定位置（避免尝试创建 ~/.matplotlib，且字体缓存可复用）。
+        # 注意必须直接赋值：PyInstaller 的 matplotlib runtime hook 会把 MPLCONFIGDIR
+        # 指向一次性临时目录（每次启动重建字体缓存，且写操作会被 _safe_open 拦截），
+        # setdefault 无法覆盖它。
+        os.environ["MPLBACKEND"] = "Agg"
+        _mpl_config = os.path.join(working_dir, ".mplconfig")
+        os.makedirs(_mpl_config, exist_ok=True)
+        os.environ["MPLCONFIGDIR"] = _mpl_config
+        # 写到临时文件，让 traceback 与 __file__ 指向真实路径（与 subprocess 模式行为一致）
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(sandbox_code)
+            temp_script = f.name
+        with open(temp_script, encoding="utf-8") as f:
+            source = f.read()
+        globals_dict = {"__name__": "__main__", "__file__": temp_script}
+        with contextlib.redirect_stdout(stdout_buf), contextlib.redirect_stderr(stderr_buf):
+            try:
+                exec(compile(source, temp_script, "exec"), globals_dict)
+            except SystemExit:
+                pass
+            except BaseException:  # noqa: BLE001 - 沙箱必须捕获用户代码的一切异常
+                returncode = 1
+                traceback.print_exc()
+    except BaseException:  # noqa: BLE001
+        returncode = 1
+        stderr_buf.write(traceback.format_exc())
+    finally:
+        if temp_script:
+            try:
+                os.unlink(temp_script)
+            except OSError:
+                pass
+        try:
+            conn.send({
+                "returncode": returncode,
+                "stdout": stdout_buf.getvalue(),
+                "stderr": stderr_buf.getvalue(),
+            })
+        except Exception:
+            pass
+        conn.close()
+
+
 class CodeSecurityChecker(ast.NodeVisitor):
     """AST 安全 checker - 检查危险操作"""
     
@@ -185,6 +252,42 @@ class RestrictedPythonSandbox:
 
         output_dir_literal = repr(output_dir_str) if output_dir_str else "None"
 
+        # 仅在用户代码用到 matplotlib 时注入中文字体设置，避免白白付出 import 开销
+        if "matplotlib" in user_code:
+            cjk_font_setup = (
+                "try:\n"
+                "    import matplotlib as _mpl\n"
+                "    from matplotlib import font_manager as _fm\n"
+                "    _CJK_CANDIDATES = [\n"
+                "        'PingFang SC', 'Hiragino Sans GB', 'Arial Unicode MS',\n"
+                "        'Microsoft YaHei', 'SimHei', 'Noto Sans CJK SC',\n"
+                "    ]\n"
+                "    _available = {f.name for f in _fm.fontManager.ttflist}\n"
+                "    _cjk = [n for n in _CJK_CANDIDATES if n in _available]\n"
+                "    if _cjk:\n"
+                "        _mpl.rcParams['font.sans-serif'] = _cjk + ['DejaVu Sans']\n"
+                "        # 兜底：用户代码硬编码不存在的中文字体（如 SimHei）时，\n"
+                "        # 把可用的 CJK 字体放到字体链首位，避免中文回退成 DejaVu 方块。\n"
+                "        # patch _find_fonts_by_props（文本渲染实际走的解析入口）。\n"
+                "        _orig_find_fonts = _fm.FontManager._find_fonts_by_props\n"
+                "        def _cjk_find_fonts(self, prop, *args, **kwargs):\n"
+                "            paths = _orig_find_fonts(self, prop, *args, **kwargs)\n"
+                "            try:\n"
+                "                first = self.findfont(_cjk[0], fallback_to_default=False)\n"
+                "                first_path = str(getattr(first, 'path', first))\n"
+                "                rest = [p for p in paths\n"
+                "                        if str(getattr(p, 'path', p)) != first_path]\n"
+                "                return [first] + rest\n"
+                "            except Exception:\n"
+                "                return paths\n"
+                "        _fm.FontManager._find_fonts_by_props = _cjk_find_fonts\n"
+                "    _mpl.rcParams['axes.unicode_minus'] = False\n"
+                "except Exception:\n"
+                "    pass"
+            )
+        else:
+            cjk_font_setup = "pass  # 未使用 matplotlib"
+
         sandbox_wrapper = f'''
 # 沙箱环境设置
 import sys
@@ -208,6 +311,13 @@ for _p in sys.path:
 # 工作目录与输出目录
 _WORKING_DIR = {repr(working_dir_str)}
 _OUTPUT_DIR = {output_dir_literal}
+# matplotlib 配置/字体缓存目录，写入放行
+_MPL_CONFIG_DIR = _os.path.join(_WORKING_DIR, '.mplconfig')
+# 沙箱是无头环境：强制 Agg 后端；配置/字体缓存指到工作目录下，避免触碰 ~/.matplotlib
+_os.makedirs(_MPL_CONFIG_DIR, exist_ok=True)
+# 直接赋值：覆盖 PyInstaller matplotlib runtime hook 设置的一次性临时目录
+_os.environ['MPLBACKEND'] = 'Agg'
+_os.environ['MPLCONFIGDIR'] = _MPL_CONFIG_DIR
 
 # 允许的系统路径（主要用于 pandas/numpy/matplotlib 等库的正常运行）
 _ALLOWED_SYSTEM_PATHS = [
@@ -216,8 +326,34 @@ _ALLOWED_SYSTEM_PATHS = [
     '/usr/lib',      # Unix 系统库
     '/Library',      # macOS CLI Tools + Frameworks（含 Python.framework）
     '/opt',          # 可选软件包
+    '/etc/apache2',  # openpyxl 初始化 mimetypes 需要读取 /etc/apache2/mime.types
     {site_pkg_literal},  # Python site-packages（第三方包资源文件）
 ] + _PYTHON_LIB_PATHS
+
+# matplotlib 可能选用用户字体目录下的字体（如 ~/Library/Fonts 的 CJK 字体），放行只读
+for _fonts_dir in (
+    _os.path.expanduser('~/Library/Fonts'),     # macOS 用户字体
+    _os.path.expanduser('~/.fonts'),            # Linux 用户字体
+    _os.path.expanduser('~/.local/share/fonts'),
+    '/usr/local/share/fonts',
+):
+    if _os.path.isdir(_fonts_dir):
+        _ALLOWED_SYSTEM_PATHS.append(_os.path.realpath(_fonts_dir))
+
+# PyInstaller 冻结环境：PYZ 归档内嵌在可执行文件中，冻结导入器会 open
+# sys.executable / _MEIPASS 下的文件，需要放行只读访问（写仍被限制在 output_dir）
+if getattr(sys, 'frozen', False):
+    _app_bin_dir = _os.path.dirname(_os.path.realpath(sys.executable))
+    _ALLOWED_SYSTEM_PATHS.append(_app_bin_dir)
+    # macOS .app：matplotlib 字体等 data 文件在 Contents/Resources 下，
+    # 与可执行文件（Contents/MacOS）、_MEIPASS（Contents/Frameworks）不同级，
+    # 放行整个 Contents 目录的只读访问（均为应用自身只读资源）
+    _app_contents_dir = _os.path.realpath(_os.path.join(_app_bin_dir, '..'))
+    if _os.path.basename(_app_contents_dir) == 'Contents':
+        _ALLOWED_SYSTEM_PATHS.append(_app_contents_dir)
+    _meipass = getattr(sys, '_MEIPASS', None)
+    if _meipass and _os.path.isdir(_meipass):
+        _ALLOWED_SYSTEM_PATHS.append(_os.path.realpath(_meipass))
 
 def _is_allowed_path(path_str: str) -> bool:
     """检查路径是否允许读取"""
@@ -278,11 +414,14 @@ def _safe_open(path, mode='r', *args, **kwargs):
             if relative.startswith('/'):
                 relative = relative[1:]
             p = out / relative
-
         resolved = p.resolve()
-        if not resolved.is_relative_to(out):
-            raise PermissionError(f"Cannot write outside output directory: {{path}}")
-        return _original_open(resolved, mode, *args, **kwargs)
+        if resolved.is_relative_to(out) or resolved.is_relative_to(_Path(_MPL_CONFIG_DIR)):
+            return _original_open(resolved, mode, *args, **kwargs)
+        raise PermissionError(
+            f"Cannot write outside output directory: {{path}}. "
+            "禁止写入工作目录或相对路径；所有输出文件（图表/CSV/报告）必须保存到 "
+            "/sandbox_output/ 前缀下，例如 savefig('/sandbox_output/chart.png')。"
+        )
 
     # 读模式：相对路径基于工作目录解析
     path_str = str(path)
@@ -291,7 +430,7 @@ def _safe_open(path, mode='r', *args, **kwargs):
 
     resolved_str = _os.path.normpath(_os.path.abspath(path_str))
     if not _is_allowed_path(resolved_str):
-        raise PermissionError(f"权限错误：无法访问工作目录外的文件")
+        raise PermissionError(f"权限错误：无法访问工作目录外的文件: {{path}}")
 
     return _original_open(resolved_str, mode, *args, **kwargs)
 
@@ -312,6 +451,10 @@ builtins.input = _RestrictedInput()
 if _OUTPUT_DIR:
     _os.makedirs(_OUTPUT_DIR, exist_ok=True)
     _OrigPath = _Path
+    # 必须在补丁之前捕获原始方法，否则 _OrigPath.mkdir 指向补丁函数自身导致无限递归
+    _orig_is_dir = _Path.is_dir
+    _orig_exists = _Path.exists
+    _orig_mkdir = _Path.mkdir
 
     def _sandbox_path_is_dir(self):
         _raw = str(self)
@@ -320,26 +463,30 @@ if _OUTPUT_DIR:
         if _raw.startswith('/sandbox_output/'):
             _rel = _raw[len('/sandbox_output/'):]
             _real = _OrigPath(_OUTPUT_DIR) / _rel
-            return _real.is_dir()
-        return _OrigPath.is_dir(self)
+            return _orig_is_dir(_real)
+        return _orig_is_dir(self)
 
     def _sandbox_path_exists(self):
         _raw = str(self)
         if _raw == '/sandbox_output' or _raw.startswith('/sandbox_output/'):
             _rel = _raw[len('/sandbox_output'):].lstrip('/')
             _real = _OrigPath(_OUTPUT_DIR) / _rel if _rel else _OrigPath(_OUTPUT_DIR)
-            return _real.exists()
-        return _OrigPath.exists(self)
+            return _orig_exists(_real)
+        return _orig_exists(self)
 
     def _sandbox_path_mkdir(self, mode=0o777, parents=False, exist_ok=False):
         _raw = str(self)
         if _raw == '/sandbox_output' or _raw.startswith('/sandbox_output/'):
             return  # 虚拟目录，跳过
-        return _OrigPath.mkdir(self, mode, parents, exist_ok)
+        return _orig_mkdir(self, mode, parents, exist_ok)
 
     _Path.is_dir = _sandbox_path_is_dir
     _Path.exists = _sandbox_path_exists
     _Path.mkdir = _sandbox_path_mkdir
+
+# matplotlib 中文字体：打包环境默认 DejaVu Sans 无 CJK 字形，中文标题会渲染成方块。
+# 优先使用系统中文字体（macOS PingFang / 冬青黑体，Windows SimHei 等），找不到则静默回退。
+{cjk_font_setup}
 
 # 执行用户代码
 {user_code}
@@ -361,13 +508,20 @@ if _OUTPUT_DIR:
         # 2. 创建沙箱脚本
         sandbox_code = self._create_sandbox_script(code)
 
-        # 3. 在临时文件中执行
+        # 3. 执行：PyInstaller 冻结环境下包内没有独立 Python 解释器，
+        # subprocess 调 sys.executable 会把整个应用再启动一遍，
+        # 必须改用 multiprocessing spawn 子进程（能复用打包内的 pandas/matplotlib）。
+        if _is_frozen():
+            return self._execute_frozen(code, sandbox_code)
+        return self._execute_subprocess(code, sandbox_code)
+
+    def _execute_subprocess(self, code: str, sandbox_code: str) -> Dict[str, Any]:
+        """开发环境：独立 Python 解释器 + 临时脚本执行。"""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
             f.write(sandbox_code)
             temp_script = f.name
 
         try:
-            # 使用 subprocess 执行，设置超时和资源限制
             env = os.environ.copy()
             # 保留 PYTHONPATH 以确保虚拟环境中的包可用
 
@@ -380,62 +534,8 @@ if _OUTPUT_DIR:
                 timeout=self.timeout,
                 env=env
             )
+            return self._build_result(code, result.returncode, result.stdout, result.stderr)
 
-            output = result.stdout
-            error = result.stderr
-
-            # 过滤掉常见的警告信息
-            filtered_error = self._filter_warnings(error)
-
-            if result.returncode != 0:
-                # 构建详细错误信息，包含代码和完整 stderr
-                base_response = {
-                    "success": False,
-                    "code": code,
-                    "stdout": output,
-                    "stderr": error,
-                }
-
-                if "SyntaxError" in error:
-                    return {**base_response,
-                        "error_type": "syntax_error",
-                        "error": f"语法错误:\n{error.strip()}"}
-                elif "ZeroDivisionError" in error:
-                    return {**base_response,
-                        "error_type": "runtime_error",
-                        "error": f"ZeroDivisionError: 除零错误\n{error.strip()}"}
-                elif "FileNotFoundError" in error or "No such file" in error:
-                    return {**base_response,
-                        "error_type": "file_error",
-                        "error": f"FileNotFoundError: {error.strip()}"}
-                elif "PermissionError" in error or "权限" in error:
-                    return {**base_response,
-                        "error_type": "permission_error",
-                        "error": f"权限错误：无法访问工作目录外的文件\n{error.strip()}"}
-                elif "ModuleNotFoundError" in error:
-                    match = re.search(r"No module named '([^']+)'", error)
-                    module_name = match.group(1) if match else "未知模块"
-                    return {**base_response,
-                        "error_type": "module_not_found",
-                        "error": f"ImportError: ModuleNotFoundError: 未找到模块 '{module_name}'，请先安装（如 pip install {module_name}）\n{error.strip()}"}
-                elif "ImportError" in error:
-                    match = re.search(r"No module named '([^']+)'", error)
-                    module_name = match.group(1) if match else "未知模块"
-                    return {**base_response,
-                        "error_type": "import_error",
-                        "error": f"ImportError: 导入模块 '{module_name}' 失败，请检查模块是否正确安装\n{error.strip()}"}
-                else:
-                    return {**base_response,
-                        "error_type": "execution_error",
-                        "error": filtered_error.strip() or error.strip() or "执行失败"}
-
-            return {
-                "success": True,
-                "output": output,
-                "code": code,
-                "stderr": filtered_error if filtered_error else "",
-            }
-            
         except subprocess.TimeoutExpired:
             return {
                 "success": False,
@@ -452,6 +552,107 @@ if _OUTPUT_DIR:
                 os.unlink(temp_script)
             except:
                 pass
+
+    def _execute_frozen(self, code: str, sandbox_code: str) -> Dict[str, Any]:
+        """打包环境：multiprocessing spawn 子进程内执行沙箱脚本。
+
+        子进程继承打包内的全部依赖（pandas/numpy/matplotlib），
+        受限 open / 输入禁用等沙箱约束由脚本自身在子进程内生效。
+        """
+        import multiprocessing as mp
+
+        ctx = mp.get_context("spawn")
+        parent_conn, child_conn = ctx.Pipe(duplex=False)
+        proc = ctx.Process(
+            target=_sandbox_child_entry,
+            args=(child_conn, str(self.working_dir), sandbox_code),
+            daemon=True,
+        )
+        try:
+            proc.start()
+            proc.join(self.timeout)
+            if proc.is_alive():
+                proc.terminate()
+                proc.join(5)
+                return {
+                    "success": False,
+                    "error": "执行超时"
+                }
+            if parent_conn.poll():
+                payload = parent_conn.recv()
+            else:
+                payload = {
+                    "returncode": 1,
+                    "stdout": "",
+                    "stderr": f"沙箱子进程异常退出（exitcode={proc.exitcode}）",
+                }
+            return self._build_result(
+                code, payload["returncode"], payload["stdout"], payload["stderr"]
+            )
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+        finally:
+            try:
+                parent_conn.close()
+            except Exception:
+                pass
+
+    def _build_result(self, code: str, returncode: int, output: str, error: str) -> Dict[str, Any]:
+        """把子进程（subprocess / multiprocessing）的退出码与输出转换为统一结果。"""
+        # 过滤掉常见的警告信息
+        filtered_error = self._filter_warnings(error)
+
+        if returncode != 0:
+            # 构建详细错误信息，包含代码和完整 stderr
+            base_response = {
+                "success": False,
+                "code": code,
+                "stdout": output,
+                "stderr": error,
+            }
+
+            if "SyntaxError" in error:
+                return {**base_response,
+                    "error_type": "syntax_error",
+                    "error": f"语法错误:\n{error.strip()}"}
+            elif "ZeroDivisionError" in error:
+                return {**base_response,
+                    "error_type": "runtime_error",
+                    "error": f"ZeroDivisionError: 除零错误\n{error.strip()}"}
+            elif "FileNotFoundError" in error or "No such file" in error:
+                return {**base_response,
+                    "error_type": "file_error",
+                    "error": f"FileNotFoundError: {error.strip()}"}
+            elif "PermissionError" in error or "权限" in error:
+                return {**base_response,
+                    "error_type": "permission_error",
+                    "error": f"权限错误：无法访问工作目录外的文件\n{error.strip()}"}
+            elif "ModuleNotFoundError" in error:
+                match = re.search(r"No module named '([^']+)'", error)
+                module_name = match.group(1) if match else "未知模块"
+                return {**base_response,
+                    "error_type": "module_not_found",
+                    "error": f"ImportError: ModuleNotFoundError: 未找到模块 '{module_name}'，请先安装（如 pip install {module_name}）\n{error.strip()}"}
+            elif "ImportError" in error:
+                match = re.search(r"No module named '([^']+)'", error)
+                module_name = match.group(1) if match else "未知模块"
+                return {**base_response,
+                    "error_type": "import_error",
+                    "error": f"ImportError: 导入模块 '{module_name}' 失败，请检查模块是否正确安装\n{error.strip()}"}
+            else:
+                return {**base_response,
+                    "error_type": "execution_error",
+                    "error": filtered_error.strip() or error.strip() or "执行失败"}
+
+        return {
+            "success": True,
+            "output": output,
+            "code": code,
+            "stderr": filtered_error if filtered_error else "",
+        }
     
     def _filter_warnings(self, stderr: str) -> str:
         """过滤警告信息，保留实际错误"""

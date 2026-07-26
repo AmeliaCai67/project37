@@ -28,6 +28,7 @@ a = Analysis(
         "uvicorn.protocols.http.auto",
         "sqlalchemy.ext.asyncio",
         "platformdirs",
+        "tkinter",
     ],
     hookspath=[],
     hooksconfig={},

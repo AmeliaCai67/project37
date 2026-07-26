@@ -30,6 +30,9 @@ result = {
     "spa_is_html": b'id="app"' in client.get('/setup').content,
     # 未知 API 路径仍应返回 404，不回退到前端
     "api_404": client.get('/api/nonexistent').status_code,
+    # 回归：POST /api/config（无尾斜杠）在静态挂载存在时必须到达 API 路由
+    # （未认证 → 401，绝不能是被 StaticFiles 吃掉的 405）
+    "config_post_status": client.post('/api/config', json={'llm_api_key': 'sk-x'}).status_code,
 }
 print(json.dumps(result))
 """
@@ -47,3 +50,4 @@ print(json.dumps(result))
     assert data["spa_status"] == 200
     assert data["spa_is_html"] is True
     assert data["api_404"] == 404
+    assert data["config_post_status"] == 401

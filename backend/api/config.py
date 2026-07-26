@@ -22,7 +22,7 @@ async def get_config_status():
     )
 
 
-@router.post("/")
+@router.post("")  # 注意：不能用 "/"，prod 静态挂载会抢先匹配 /api/config 导致 405
 async def update_config(
     payload: ConfigUpdate,
     current_user: User = Depends(require_admin),

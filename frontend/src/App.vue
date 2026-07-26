@@ -13,12 +13,8 @@ const router = useRouter()
 const userStore = useUserStore()
 
 onMounted(async () => {
-  // 未登录时自动获取默认用户 Token
-  if (!userStore.token) {
-    await userStore.autoLogin()
-  } else {
-    await userStore.fetchUserInfo()
-  }
+  // 鉴权初始化（与路由守卫共享同一个 Promise，不会重复请求）
+  await userStore.initAuth()
 
   // 检查是否已配置 API Key
   try {
