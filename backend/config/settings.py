@@ -49,12 +49,19 @@ class Settings(BaseSettings):
     MAX_FILES_PER_CHAT: int = 5  # 单次对话最多引用文件数
 
     # LLM 配置
-    LLM_PROVIDER: Literal["deepseek", "minimax", "openai"] = "deepseek"
+    # 任意 OpenAI 兼容服务商：deepseek/kimi/qwen/zhipu/minimax/openai/custom...
+    LLM_PROVIDER: str = "deepseek"
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = ""
     LLM_MODEL: str = "deepseek-chat"  # 或 minimax-text-01
     LLM_MAX_TOKENS: int = 4096
     LLM_TEMPERATURE: float = 0.7
+
+    # 备选 LLM（选填；主模型请求失败时自动切换一次）
+    LLM_FALLBACK_PROVIDER: str = ""
+    LLM_FALLBACK_API_KEY: str = ""
+    LLM_FALLBACK_BASE_URL: str = ""
+    LLM_FALLBACK_MODEL: str = ""
 
     # 运行模式
     APP_MODE: Literal["personal", "team"] = "personal"

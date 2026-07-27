@@ -33,6 +33,10 @@ async def update_config(
         "LLM_PROVIDER": payload.llm_provider,
         "LLM_MODEL": payload.llm_model,
         "LLM_BASE_URL": payload.llm_base_url or "",
+        "LLM_FALLBACK_PROVIDER": payload.llm_fallback_provider,
+        "LLM_FALLBACK_API_KEY": payload.llm_fallback_api_key,
+        "LLM_FALLBACK_MODEL": payload.llm_fallback_model,
+        "LLM_FALLBACK_BASE_URL": payload.llm_fallback_base_url,
     }
     # 持久化到用户 .env
     config_store.update_user_config(values)
